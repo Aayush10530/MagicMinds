@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { GenieAvatar } from './GenieAvatar';
+import { DavidAvatar } from './DavidAvatar';
 import { EmojiReactions } from './EmojiReactions';
 import { SmartTips } from './SmartTips';
-import { Mic, MicOff, Play, ArrowLeft, ArrowRight, Home, ShoppingCart, School } from 'lucide-react';
+import { Mic, MicOff, Play, ArrowLeft, ArrowRight, Home, ShoppingCart, School, Volume2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface RoleplayScenario {
@@ -109,6 +109,10 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   const [isProcessing, setIsProcessing] = useState(false);
   const [userResponses, setUserResponses] = useState<string[]>([]);
   const { toast } = useToast();
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const startRecording = async () => {
     try {
@@ -222,7 +226,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
           <div className="text-center space-y-2">
             <h3 className="text-xl font-bold text-purple-800">Choose Your Adventure! 🗺️</h3>
             <p className="text-purple-600">
-              Pick a scenario and practice real-life conversations with Genie!
+              Pick a scenario and practice real-life conversations with David!
             </p>
           </div>
         </Card>
@@ -267,7 +271,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         <div className="space-y-6">
           {/* AI Prompt */}
           <div className="flex items-start gap-4">
-            <GenieAvatar size="medium" isActive={true} mood="happy" />
+            <DavidAvatar size="medium" isActive={true} mood="happy" />
             <div className="flex-1">
               <div className="chat-bubble chat-bubble-ai text-xl">
                 {currentStepData.aiPrompt}
@@ -279,7 +283,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
                 className="mt-2 text-purple-600 hover:text-purple-800"
               >
                 <Play className="w-4 h-4 mr-2" />
-                Hear Genie Speak
+                Hear David Speak
               </Button>
             </div>
           </div>
@@ -324,7 +328,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
                userResponses[currentStep] ? '✅ Great response!' : '🎙️ Your turn to speak!'}
             </p>
             <p className="text-white/90">
-              {userResponses[currentStep] ? 'Ready for the next step!' : 'Click the microphone and respond to Genie!'}
+              {userResponses[currentStep] ? 'Ready for the next step!' : 'Click the microphone and respond to David!'}
             </p>
           </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GenieAvatar } from '@/components/GenieAvatar';
+import { DavidAvatar } from '@/components/DavidAvatar';
 import { VoiceChat } from '@/components/VoiceChat';
 import { RoleplayScenarios } from '@/components/RoleplayScenarios';
 import { LanguageSelector } from '@/components/LanguageSelector';
@@ -7,9 +7,12 @@ import { ProgressTracker } from '@/components/ProgressTracker';
 import { WelcomeAnimation } from '@/components/WelcomeAnimation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Mic, MessageCircle, Drama, Star, Settings } from 'lucide-react';
+import { Mic, MessageCircle, Drama, Star, X } from 'lucide-react';
+import { User } from '@/components/User';
+import RotatingText from '@/components/RotatingText';
+import { SmartTips } from '@/components/SmartTips';
 
-export type AppMode = 'welcome' | 'chat' | 'roleplay';
+export type AppMode = 'welcome' | 'chat' | 'roleplay' | 'debug';
 export type Language = 'en' | 'hi' | 'mr' | 'gu' | 'ta';
 
 const Index = () => {
@@ -21,11 +24,13 @@ const Index = () => {
     streak: 0,
     badges: [] as string[]
   });
-  const [showSettings, setShowSettings] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // This will be replaced with actual auth state
+  const [userName, setUserName] = useState<string>(''); // User's name from authentication
 
   useEffect(() => {
     // Load user progress from localStorage
-    const savedProgress = localStorage.getItem('genie-progress');
+    const savedProgress = localStorage.getItem('david-progress');
     if (savedProgress) {
       setUserProgress(JSON.parse(savedProgress));
     }
@@ -47,7 +52,7 @@ const Index = () => {
         updated.badges.push('actor');
       }
       
-      localStorage.setItem('genie-progress', JSON.stringify(updated));
+      localStorage.setItem('david-progress', JSON.stringify(updated));
       return updated;
     });
   };
@@ -63,49 +68,62 @@ const Index = () => {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 p-6 flex justify-between items-center">
+      <header className="relative z-10 p-4 flex justify-between items-start">
         <div className="flex items-center gap-4">
-          <GenieAvatar size="small" isActive={currentMode !== 'welcome'} />
+          <DavidAvatar size="small" isActive={currentMode !== 'welcome'} />
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Genie Voice Tutor
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              Magic Minds
             </h1>
-            <p className="text-purple-600 font-medium">Your magical learning companion! ✨</p>
+            <p className="text-lg text-purple-600 font-medium">Your magical learning companion! ✨</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <LanguageSelector 
             selectedLanguage={selectedLanguage}
             onLanguageChange={setSelectedLanguage}
           />
           <ProgressTracker progress={userProgress} />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setShowSettings(!showSettings)}
-            className="hover:bg-purple-50 border-purple-200"
-          >
-            <Settings className="h-5 w-5 text-purple-600" />
-          </Button>
+          <User 
+            isLoggedIn={isLoggedIn}
+            onClick={() => setShowAuth(!showAuth)}
+            width={24}
+            height={24}
+            strokeWidth={2}
+            stroke="#8b5cf6"
+          />
         </div>
       </header>
 
       {/* Main Content */}
       <main className="relative z-10 container mx-auto px-6">
         {currentMode === 'welcome' && (
-          <div className="max-w-4xl mx-auto text-center py-20">
-            <div className="mb-12">
-              <GenieAvatar size="large" isActive={true} />
-              <h2 className="text-6xl font-bold mb-6 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 bg-clip-text text-transparent animate-bounce-in">
-                Hello, young learner! 👋
+          <div className="max-w-4xl mx-auto text-center py-12">
+            <div className="mb-8">
+              <DavidAvatar size="large" isActive={true} />
+              <h2 className="text-6xl font-bold mb-4 leading-tight">
+                Hello,{' '}
+                <RotatingText
+                  texts={
+                    isLoggedIn && userName 
+                      ? [userName, 'smart friend', 'little explorer', 'wonder seeker', 'clever kid', userName]
+                      : userName === 'Guest'
+                      ? ['Guest']
+                      : ['smart friend', 'little explorer', 'wonder seeker', 'clever kid']
+                  }
+                  className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 bg-clip-text text-transparent"
+                  interval={2000}
+                  shouldStop={isLoggedIn && userName && userName !== 'Guest'}
+                />
+                ! 👋
               </h2>
               <p className="text-2xl text-purple-700 mb-8 max-w-2xl mx-auto leading-relaxed">
-                I'm your magical AI tutor Genie! Let's learn together through fun conversations and exciting role-playing adventures! 🌟
+                I'm your magical AI tutor David! Let's learn together through fun conversations and exciting role-playing adventures! 🌟
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-12">
+            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-8">
               <Card 
                 className="p-8 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-purple-500 to-pink-500 text-white border-0 relative overflow-hidden"
                 onClick={() => setCurrentMode('chat')}
@@ -135,6 +153,13 @@ const Index = () => {
               </Card>
             </div>
 
+            <div className="mt-4 mb-12">
+              <SmartTips 
+                tip={getRandomKnowledgeTip(selectedLanguage)} 
+                type="general" 
+              />
+            </div>
+
             <div className="flex justify-center">
               <Button 
                 onClick={() => setCurrentMode('chat')}
@@ -148,7 +173,7 @@ const Index = () => {
             {/* Language Demo Section */}
             <div className="mt-12 p-6 bg-white/80 backdrop-blur rounded-2xl border border-purple-200">
               <h3 className="text-xl font-bold text-purple-800 mb-4">✨ Try Different Languages!</h3>
-              <p className="text-purple-600 mb-4">Click on a language to hear how Genie sounds in different languages:</p>
+              <p className="text-purple-600 mb-4">Click on a language to hear how David sounds in different languages:</p>
               <div className="flex justify-center gap-3 flex-wrap">
                 {['en', 'hi', 'mr', 'gu', 'ta'].map((lang) => (
                   <Button
@@ -156,11 +181,11 @@ const Index = () => {
                     onClick={() => {
                       setSelectedLanguage(lang as Language);
                       // Demo TTS in selected language
-                      const demoText = lang === 'en' ? 'Hello! I am Genie, your learning friend!' :
-                                     lang === 'hi' ? 'नमस्ते! मैं जीनी हूं, आपका सीखने वाला मित्र!' :
-                                     lang === 'mr' ? 'नमस्कार! मी जीनी आहे, तुमचा शिकण्याचा मित्र!' :
-                                     lang === 'gu' ? 'નમસ્તે! હું જીની છું, તમારો શીખવાનો મિત્र!' :
-                                     'வணக்கம்! நான் ஜீனி, உங்கள் கற்றல் நண்பன்!';
+                      const demoText = lang === 'en' ? 'Hello! I am David, your learning friend!' :
+                                     lang === 'hi' ? 'नमस्ते! मैं डेविड हूं, आपका सीखने वाला मित्र!' :
+                                     lang === 'mr' ? 'नमस्कार! मी डेविड आहे, तुमचा शिकण्याचा मित्र!' :
+                                     lang === 'gu' ? 'નમસ્તે! હું ડેવિડ છું, તમારો શીખવાનો મિત્ર!' :
+                                     'வணக்கம்! நான் டேவிட், உங்கள் கற்றல் நண்பன்!';
                       
                        if ('speechSynthesis' in window) {
                          const utterance = new SpeechSynthesisUtterance(demoText);
@@ -210,7 +235,7 @@ const Index = () => {
                 ← Back to Home
               </Button>
               <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Chat with Genie! 💬
+                Chat with David! 💬
               </h2>
               <p className="text-purple-700 text-lg">
                 Ask me anything and practice your speaking skills!
@@ -246,6 +271,31 @@ const Index = () => {
             />
           </div>
         )}
+
+        {currentMode === 'debug' && (
+          <div className="max-w-4xl mx-auto py-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-purple-700">API Connection Tester</h2>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setCurrentMode('welcome')}
+                className="flex items-center gap-1"
+              >
+                <X size={16} />
+                Close
+              </Button>
+            </div>
+            <ApiTester />
+            <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-md">
+              <h3 className="text-lg font-medium text-amber-800 mb-2">Troubleshooting 500 Errors</h3>
+              <p className="text-amber-700">
+                If you're seeing 500 Internal Server Error responses, it's likely because the API keys in the backend .env file are not configured.
+                Please check the backend .env file and replace the placeholder API keys with your actual keys from OpenAI and ElevenLabs.
+              </p>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Mode switcher floating buttons */}
@@ -258,6 +308,86 @@ const Index = () => {
           >
             {currentMode === 'chat' ? <Drama className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
           </Button>
+        </div>
+      )}
+
+      {/* Authentication Modal */}
+      {showAuth && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <Card className="p-8 bg-white/95 backdrop-blur border-purple-200 max-w-md w-full mx-4 relative">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowAuth(false)}
+              className="absolute top-4 right-4 hover:bg-purple-50"
+            >
+              <X className="h-5 w-5 text-purple-600" />
+            </Button>
+            
+            <div className="text-center space-y-6">
+              <div className="flex justify-center">
+                <User 
+                  isLoggedIn={isLoggedIn}
+                  width={48}
+                  height={48}
+                  strokeWidth={2.5}
+                  stroke="#8b5cf6"
+                />
+              </div>
+              
+              <div>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                  {isLoggedIn ? 'Account Settings' : 'Welcome to Magic Minds'}
+                </h2>
+                <p className="text-purple-600">
+                  {isLoggedIn ? 'Manage your account and preferences' : 'Sign in to save your progress and personalize your learning experience'}
+                </p>
+              </div>
+
+              {!isLoggedIn ? (
+                <div className="space-y-4">
+                  <Button 
+                    onClick={() => {
+                      setIsLoggedIn(true);
+                      setUserName('Parent'); // Extract name from email or use a proper name
+                      setShowAuth(false);
+                    }}
+                    className="w-full bg-transparent text-purple-600 border-2 border-purple-300 hover:bg-purple-50 hover:border-purple-400"
+                  >
+                    Sign In with Google
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setIsLoggedIn(true);
+                      setUserName('Guest'); // Guest user name
+                      setShowAuth(false);
+                    }}
+                    className="w-full border-purple-200 text-purple-600 hover:bg-purple-50"
+                  >
+                    Continue as Guest
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <p className="text-purple-700 font-medium">Logged in as:</p>
+                    <p className="text-purple-600">{userName}</p>
+                  </div>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setIsLoggedIn(false);
+                      setUserName('');
+                    }}
+                    className="w-full border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    Sign Out
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { GenieAvatar } from './GenieAvatar';
+import { DavidAvatar } from './DavidAvatar';
 
 interface WelcomeAnimationProps {
   onComplete: () => void;
@@ -38,7 +38,7 @@ export const WelcomeAnimation = ({ onComplete }: WelcomeAnimationProps) => {
         <div className="space-y-8">
           {showAvatar && (
             <div className="flex justify-center">
-              <GenieAvatar size="large" isActive={true} mood="excited" />
+              <DavidAvatar size="large" isActive={true} mood="excited" />
             </div>
           )}
           

@@ -47,7 +47,7 @@ export const LanguageSelector = ({ selectedLanguage, onLanguageChange }: Languag
       </div>
       
       <p className="text-xs text-purple-600 mt-2 text-center">
-        Genie will speak to you in your chosen language! ✨
+        David will speak to you in your chosen language! ✨
       </p>
     </Card>
   );
