@@ -7,17 +7,67 @@ import { ProgressTracker } from '@/components/ProgressTracker';
 import { WelcomeAnimation } from '@/components/WelcomeAnimation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Mic, MessageCircle, Drama, Star, X } from 'lucide-react';
+import { Mic, MessageCircle, Drama, Star, X, Lightbulb } from 'lucide-react';
 import { User } from '@/components/User';
 import RotatingText from '@/components/RotatingText';
 import { SmartTips } from '@/components/SmartTips';
 
-export type AppMode = 'welcome' | 'chat' | 'roleplay' | 'debug';
+export type AppMode = 'welcome' | 'chat' | 'roleplay' | 'knowledge';
 export type Language = 'en' | 'hi' | 'mr' | 'gu' | 'ta';
+
+// Function to get random insightful knowledge tips for children
+const getRandomKnowledgeTip = (language: Language): string => {
+  const knowledgeTips = {
+    'en': [
+      "Did you know? Octopuses have three hearts and blue blood! 🐙",
+      "The Earth is about 4.5 billion years old, that's really, really old! 🌍",
+      "A group of flamingos is called a 'flamboyance'! How fancy! 💖",
+      "Stars twinkle because their light bends when it passes through Earth's atmosphere! ✨",
+      "Your brain is more active when you're sleeping than when you're watching TV! 🧠",
+      "Butterflies taste with their feet! Imagine tasting your food by walking on it! 🦋",
+      "The Great Wall of China is so long it would take about 18 months to walk its entire length! 🧱",
+      "A day on Venus is longer than a year on Venus! That's because Venus spins very slowly! 🪐",
+      "Honey never spoils! Archaeologists have found pots of honey in ancient Egyptian tombs that are over 3,000 years old! 🍯",
+      "Your fingernails grow faster on your dominant hand! Check it out! 💅"
+    ],
+    'hi': [
+      "क्या आप जानते हैं? ऑक्टोपस के तीन दिल और नीला खून होता है! 🐙",
+      "पृथ्वी लगभग 4.5 अरब वर्ष पुरानी है, यह वास्तव में बहुत पुरानी है! 🌍",
+      "फ्लेमिंगो के समूह को 'फ्लैम्बोयंस' कहा जाता है! कितना शानदार! 💖",
+      "तारे टिमटिमाते हैं क्योंकि उनका प्रकाश पृथ्वी के वायुमंडल से गुजरने पर मुड़ जाता है! ✨",
+      "जब आप सोते हैं तो आपका मस्तिष्क टीवी देखने की तुलना में अधिक सक्रिय होता है! 🧠"
+    ],
+    'mr': [
+      "तुम्हाला माहित आहे का? ऑक्टोपसला तीन हृदये आणि निळे रक्त असते! 🐙",
+      "पृथ्वी सुमारे 4.5 अब्ज वर्षे जुनी आहे, ती खरंच खूप जुनी आहे! 🌍",
+      "फ्लेमिंगोच्या समूहाला 'फ्लैम्बोयन्स' म्हणतात! किती छान! 💖",
+      "तारे टिमटिमतात कारण त्यांचा प्रकाश पृथ्वीच्या वातावरणातून जाताना वाकतो! ✨",
+      "तुम्ही झोपलेले असताना तुमचे मेंदू टीव्ही पाहण्यापेक्षा जास्त सक्रिय असते! 🧠"
+    ],
+    'gu': [
+      "શું તમે જાણો છો? ઓક્ટોપસને ત્રણ હૃદય અને વાદળી રક્ત હોય છે! 🐙",
+      "પૃથ્વી લગભગ 4.5 અબજ વર્ષ જૂની છે, તે ખરેખર ખૂબ જૂની છે! 🌍",
+      "ફ્લેમિંગોના સમૂહને 'ફ્લેમ્બોયન્સ' કહેવામાં આવે છે! કેટલું ભવ્ય! 💖",
+      "તારાઓ ટમટમે છે કારણ કે તેમનો પ્રકાશ પૃથ્વીના વાતાવરણમાંથી પસાર થતી વખતે વળે છે! ✨",
+      "જ્યારે તમે ઊંઘી રહ્યા હોવ ત્યારે તમારું મગજ ટીવી જોવા કરતાં વધુ સક્રિય હોય છે! 🧠"
+    ],
+    'ta': [
+      "உங்களுக்குத் தெரியுமா? ஆக்டோபஸுக்கு மூன்று இதயங்களும் நீல இரத்தமும் உள்ளது! 🐙",
+      "பூமி சுமார் 4.5 பில்லியன் ஆண்டுகள் பழமையானது, அது உண்மையிலேயே மிகவும் பழமையானது! 🌍",
+      "ஃப்ளெமிங்கோக்களின் குழுவை 'ஃப்ளாம்பாயன்ஸ்' என்று அழைக்கிறார்கள்! எவ்வளவு அழகானது! 💖",
+      "நட்சத்திரங்கள் மின்னுகின்றன ஏனெனில் அவற்றின் ஒளி பூமியின் வளிமண்டலத்தின் வழியாக செல்லும்போது வளைகிறது! ✨",
+      "நீங்கள் தூங்கும்போது உங்கள் மூளை டிவி பார்ப்பதை விட அதிகமாக செயல்படுகிறது! 🧠"
+    ]
+  };
+
+  const tips = knowledgeTips[language] || knowledgeTips['en'];
+  return tips[Math.floor(Math.random() * tips.length)];
+};
 
 const Index = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('welcome');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('en');
+  const [currentTip, setCurrentTip] = useState<string>(getRandomKnowledgeTip('en'));
   const [userProgress, setUserProgress] = useState({
     chatSessions: 0,
     roleplayCompleted: 0,
@@ -35,6 +85,11 @@ const Index = () => {
       setUserProgress(JSON.parse(savedProgress));
     }
   }, []);
+
+  // Update the current tip when language changes
+  useEffect(() => {
+    setCurrentTip(getRandomKnowledgeTip(selectedLanguage));
+  }, [selectedLanguage]);
 
   const updateProgress = (type: 'chat' | 'roleplay') => {
     setUserProgress(prev => {
@@ -123,7 +178,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-8">
+            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-8">
               <Card 
                 className="p-8 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-purple-500 to-pink-500 text-white border-0 relative overflow-hidden"
                 onClick={() => setCurrentMode('chat')}
@@ -151,13 +206,37 @@ const Index = () => {
                   </p>
                 </div>
               </Card>
+
+              <Card 
+                className="p-8 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-yellow-500 to-orange-500 text-white border-0 relative overflow-hidden"
+                onClick={() => setCurrentMode('knowledge')}
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16"></div>
+                <div className="relative z-10">
+                  <Lightbulb className="h-16 w-16 mb-4 mx-auto animate-float" style={{animationDelay: '1s'}} />
+                  <h3 className="text-2xl font-bold mb-3">Knowledge Explorer</h3>
+                  <p className="text-yellow-100 text-lg">
+                    Discover amazing facts and expand your knowledge about our wonderful world! 🌟
+                  </p>
+                </div>
+              </Card>
             </div>
 
             <div className="mt-4 mb-12">
-              <SmartTips 
-                tip={getRandomKnowledgeTip(selectedLanguage)} 
-                type="general" 
-              />
+              <div className="relative">
+                <SmartTips 
+                  tip={currentTip} 
+                  type="general" 
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute top-2 right-2 bg-white/30 hover:bg-white/50 rounded-full p-1"
+                  onClick={() => setCurrentTip(getRandomKnowledgeTip(selectedLanguage))}
+                >
+                  <Star className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="flex justify-center">
@@ -180,6 +259,9 @@ const Index = () => {
                     key={lang}
                     onClick={() => {
                       setSelectedLanguage(lang as Language);
+                      // Update knowledge tip for the new language
+                      setCurrentTip(getRandomKnowledgeTip(lang as Language));
+                      
                       // Demo TTS in selected language
                       const demoText = lang === 'en' ? 'Hello! I am David, your learning friend!' :
                                      lang === 'hi' ? 'नमस्ते! मैं डेविड हूं, आपका सीखने वाला मित्र!' :
@@ -272,10 +354,10 @@ const Index = () => {
           </div>
         )}
 
-        {currentMode === 'debug' && (
+        {currentMode === 'knowledge' && (
           <div className="max-w-4xl mx-auto py-8">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-purple-700">API Connection Tester</h2>
+              <h2 className="text-2xl font-bold text-purple-700">Knowledge Explorer</h2>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -286,13 +368,14 @@ const Index = () => {
                 Close
               </Button>
             </div>
-            <ApiTester />
-            <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-md">
-              <h3 className="text-lg font-medium text-amber-800 mb-2">Troubleshooting 500 Errors</h3>
-              <p className="text-amber-700">
-                If you're seeing 500 Internal Server Error responses, it's likely because the API keys in the backend .env file are not configured.
-                Please check the backend .env file and replace the placeholder API keys with your actual keys from OpenAI and ElevenLabs.
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {['en', 'hi', 'mr', 'gu', 'ta'].map((lang) => (
+                <SmartTips 
+                  key={lang}
+                  tip={getRandomKnowledgeTip(lang as Language)} 
+                  type={Math.random() > 0.5 ? 'general' : 'encouragement'}
+                />
+              ))}
             </div>
           </div>
         )}
