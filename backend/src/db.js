@@ -26,8 +26,8 @@ const syncDatabase = async () => {
         // Check registered models
         console.log('Registered Models:', Object.keys(sequelize.models));
 
-        // Sync models (Force true to recreate tables since we are having issues)
-        await sequelize.sync({ force: true });
+        // Sync models
+        await sequelize.sync({ alter: true });
         console.log('Database synchronized successfully.');
     } catch (error) {
         console.error('Unable to connect to the database:', error);
