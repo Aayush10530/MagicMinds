@@ -147,6 +147,43 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/voice/history
+ * Retrieve chat history for the current user
+ */
+router.get('/history', authenticateToken, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Find the most recent session for now, or all messages
+    // Ideally we want the last active session's messages
+    const session = await ChatSession.findOne({
+      where: { user_id: userId, type: 'chat' },
+      order: [['createdAt', 'DESC']]
+    });
+
+    if (!session) {
+      return res.json({ messages: [] });
+    }
+
+    const messages = await ChatMessage.findAll({
+      where: { session_id: session.id },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json({
+      messages: messages.map(m => ({
+        id: m.id,
+        type: m.sender, // 'user' or 'ai'
+        text: m.content,
+        timestamp: m.createdAt
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Re-export other routes (roleplay, transcribe) similarly updated or kept as is
 // For brevity, I'm only rewriting chat fully. Roleplay needs similar treatment.
 
@@ -166,7 +203,7 @@ router.post('/transcribe', upload.single('audio'), async (req, res, next) => {
     const path = require('path');
     const tempDir = path.join(__dirname, '..', '..', 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-    const audioFile = path.join(tempDir, `audio-${Date.now()}.wav`);
+    const audioFile = path.join(tempDir, `audio-${Date.now()}.webm`);
     fs.writeFileSync(audioFile, req.file.buffer);
 
     const transcript = await groqService.transcribeAudio(audioFile);

@@ -60,7 +60,31 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
 
     // Check if speech recognition is available
     setSpeechRecognitionAvailable('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+
+    // Fetch History
+    fetchHistory();
   }, [language]);
+
+  const fetchHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch('http://localhost:3000/api/voice/history', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages);
+        }
+        // If no history, we stick with the default greeting set above
+      }
+    } catch (error) {
+      console.error('Failed to fetch history', error);
+    }
+  };
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -145,6 +169,17 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
 
         // Send to backend for transcription
+        if (!navigator.onLine) {
+          toast({
+            title: "No Internet Connection",
+            description: "You are offline. Switching to Text Mode.",
+            variant: "destructive"
+          });
+          stopRetries(); // This switches to text mode
+          return;
+        }
+
+        // Send to backend for transcription
         try {
           const formData = new FormData();
           formData.append('audio', audioBlob, 'recording.webm');
@@ -161,7 +196,8 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
           });
 
           if (!response.ok) {
-            throw new Error(`Transcription failed: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Transcription failed: ${response.status}`);
           }
 
           const result = await response.json();
@@ -175,12 +211,30 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
 
         } catch (error) {
           console.error('Transcription error:', error);
+
+          let errorMsg = "Could not understand your speech.";
+          if (!navigator.onLine) {
+            errorMsg = "Check your internet connection.";
+          }
+
           toast({
             title: "Transcription Failed",
-            description: "Could not understand your speech. Please try again.",
-            variant: "destructive"
+            description: `${errorMsg} Try using Text Mode if this persists.`,
+            variant: "destructive",
+            action: (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  stopRetries(); // Switches to text mode
+                }}
+                className="bg-white/20 hover:bg-white/40 border-0 text-white"
+              >
+                Use Text Mode
+              </Button>
+            ) as any // Cast to any to avoid strict type checks on ToastAction in some setups
           });
-          setCurrentTip("I couldn't understand. Please try speaking again!");
+          setCurrentTip("I couldn't understand. Try Text Mode or speak again!");
         }
 
         // Stop all tracks
@@ -315,13 +369,27 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
     }
   };
 
-  const testSpeechRecognition = () => {
-    // Demo mode test
-    toast({
-      title: "Demo Voice Test",
-      description: "Voice recognition is in demo mode. Click the microphone to test!",
-      variant: "default"
-    });
+  const testSpeechRecognition = async () => {
+    // Check mic permission and start a short test recording
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      toast({
+        title: "Microphone Working! 🎤",
+        description: "I can hear you! Click the big microphone button to start chatting.",
+        variant: "default"
+      });
+      stream.getTracks().forEach(track => track.stop());
+      // If in text mode, maybe switch to voice mode?
+      if (showTextInput) {
+        setShowTextInput(false);
+      }
+    } catch (err) {
+      toast({
+        title: "Microphone Error",
+        description: "Could not access microphone. Please check your browser settings.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getLanguageCode = (language: string): string => {

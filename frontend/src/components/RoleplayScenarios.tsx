@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
 import { DavidAvatar } from './DavidAvatar';
 import { EmojiReactions } from './EmojiReactions';
 import { SmartTips } from './SmartTips';
@@ -109,71 +110,145 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   const [isProcessing, setIsProcessing] = useState(false);
   const [userResponses, setUserResponses] = useState<string[]>([]);
   const { toast } = useToast();
+  const [showKeyboard, setShowKeyboard] = useState(false);
+  const [textInput, setTextInput] = useState('');
+
+  const handleTextSubmit = async () => {
+    if (!textInput.trim()) return;
+
+    const message = textInput;
+    setTextInput('');
+    setIsProcessing(true);
+
+    // Add user response
+    setUserResponses(prev => [...prev, message]);
+
+    // Send to backend for AI response
+    try {
+      const response = await fetch('http://localhost:3000/api/voice/roleplay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userMessage: message,
+          language: language,
+          scenarioId: selectedScenario?.id,
+          scenarioContext: selectedScenario?.title,
+          currentPrompt: selectedScenario?.steps[currentStep]?.aiPrompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Play AI response
+        playAIPrompt(result.aiMessage);
+      }
+    } catch (error) {
+      console.error('Roleplay API error:', error);
+      // Continue with scenario even if API fails
+      toast({
+        title: "AI Response Error",
+        description: "Could not get a response from David, but let's continue!",
+        variant: "default"
+      });
+    }
+
+    setIsProcessing(false);
+
+    // Move to next step after a delay
+    setTimeout(() => {
+      if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
+        setCurrentStep(prev => prev + 1);
+      } else {
+        // Scenario complete
+        toast({
+          title: "Scenario Complete! 🎉",
+          description: "Great job! You completed the roleplay successfully!",
+        });
+        onScenarioComplete();
+      }
+    }, 2000);
+  };
+
+  // Use refs for recording to match VoiceChat implementation
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const startRecording = async () => {
     try {
-      // Use real speech recognition
-      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = getLanguageCode(language);
-        
-        recognition.onstart = () => {
-          setIsRecording(true);
-        };
-        
-        recognition.onresult = async (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setIsRecording(false);
-          setIsProcessing(true);
-          
+      if (!navigator.onLine) {
+        toast({
+          title: "You are offline",
+          description: "Voice recognition requires an internet connection. Try using the keyboard!",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      const audioChunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        setIsProcessing(true);
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+        try {
+          // 1. Transcribe
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          formData.append('language', language);
+
+          const transResponse = await fetch('http://localhost:3000/api/voice/transcribe', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!transResponse.ok) throw new Error("Transcription failed");
+          const transResult = await transResponse.json();
+
+          if (!transResult.success || !transResult.transcript) throw new Error("No transcript");
+
+          const transcript = transResult.transcript;
           console.log('Roleplay transcript:', transcript);
-          
-          // Add user response
+
+          // 2. Process Response (Roleplay Logic)
           setUserResponses(prev => [...prev, transcript]);
-          
-          // Send to backend for AI response
-          try {
-            const response = await fetch('http://localhost:3000/api/voice/roleplay', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                userMessage: transcript,
-                language: language,
-                scenarioId: selectedScenario?.id,
-                scenarioContext: selectedScenario?.title,
-                currentPrompt: selectedScenario?.steps[currentStep]?.aiPrompt
-              })
-            });
-            
-            if (!response.ok) {
-              throw new Error(`API Error: ${response.status}`);
+
+          const rpResponse = await fetch('http://localhost:3000/api/voice/roleplay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userMessage: transcript,
+              language: language,
+              scenarioId: selectedScenario?.id,
+              scenarioContext: selectedScenario?.title,
+              currentPrompt: selectedScenario?.steps[currentStep]?.aiPrompt
+            })
+          });
+
+          if (rpResponse.ok) {
+            const rpResult = await rpResponse.json();
+            if (rpResult.success && rpResult.aiMessage) {
+              playAIPrompt(rpResult.aiMessage);
             }
-            
-            const result = await response.json();
-            
-            if (result.success) {
-              // Play AI response
-              playAIPrompt(result.aiMessage);
-            }
-          } catch (error) {
-            console.error('Roleplay API error:', error);
-            // Continue with scenario even if API fails
           }
-          
-          setIsProcessing(false);
-          
-          // Move to next step after a delay
+
+          // Advance Step
           setTimeout(() => {
             if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
               setCurrentStep(prev => prev + 1);
             } else {
-              // Scenario complete
               toast({
                 title: "Scenario Complete! 🎉",
                 description: "Great job! You completed the roleplay successfully!",
@@ -181,61 +256,43 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
               onScenarioComplete();
             }
           }, 2000);
-        };
-        
-        recognition.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
-          setIsRecording(false);
+
+        } catch (error) {
+          console.error("Processing error:", error);
+          toast({
+            title: "Voice Error",
+            description: "Could not understand speech. Please try Text Mode.",
+            variant: "destructive"
+          });
+        } finally {
           setIsProcessing(false);
-          
-          if (event.error === 'network') {
-            toast({
-              title: "Voice Recognition Unavailable",
-              description: "Please try again or use a different browser.",
-              variant: "destructive"
-            });
-          } else {
-            toast({
-              title: "Speech Recognition Error",
-              description: "Please try speaking more clearly.",
-              variant: "destructive"
-            });
-          }
-        };
-        
-        recognition.onend = () => {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Auto-stop after 10s
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
           setIsRecording(false);
-        };
-        
-        // Start recognition
-        recognition.start();
-        
-        // Stop after 10 seconds
-        setTimeout(() => {
-          if (isRecording) {
-            recognition.stop();
-          }
-        }, 10000);
-        
-      } else {
-        // Fallback for browsers without speech recognition
-        toast({
-          title: "Speech Recognition Not Available",
-          description: "Your browser doesn't support speech recognition. Please use a modern browser.",
-          variant: "destructive"
-        });
-      }
-      
+        }
+      }, 10000);
+
     } catch (error) {
-      setIsRecording(false);
-      setIsProcessing(false);
+      console.error("Start recording error:", error);
       toast({
-        title: "Recording Error",
-        description: "Something went wrong. Let's try again!",
+        title: "Microphone Access Denied",
+        description: "Please allow microphone access to use voice.",
         variant: "destructive"
       });
     }
   };
+
+
 
   const getLanguageCode = (language: string): string => {
     const languageMap: { [key: string]: string } = {
@@ -292,8 +349,8 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
                 </div>
                 <h3 className="text-2xl font-bold">{scenario.title}</h3>
                 <p className="text-white/90">{scenario.description}</p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="bg-white/20 border-white/30 text-white hover:bg-white/30 w-full"
                 >
                   <Play className="w-4 h-4 mr-2" />
@@ -303,7 +360,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
             </Card>
           ))}
         </div>
-        
+
         <Card className="mt-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200">
           <div className="text-center space-y-2">
             <h3 className="text-xl font-bold text-purple-800">Choose Your Adventure! 🗺️</h3>
@@ -342,7 +399,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
             Back to Scenarios
           </Button>
         </div>
-        
+
         <div className="mt-4">
           <Progress value={progress} className="h-3 bg-white/20" />
         </div>
@@ -384,57 +441,102 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         </div>
       </Card>
 
-      {/* Voice Controls */}
+      {/* Interaction Controls */}
       <Card className={`p-8 bg-gradient-to-r ${selectedScenario.background} text-white border-0`}>
         <div className="text-center space-y-6">
-          <Button
-            onClick={startRecording}
-            disabled={isProcessing || Boolean(userResponses[currentStep])}
-            className={`w-24 h-24 rounded-full text-white border-4 border-white transition-all duration-300 ${
-              isRecording 
-                ? 'bg-red-500 hover:bg-red-600 animate-pulse-glow' 
-                : 'bg-green-500 hover:bg-green-600 hover:scale-110'
-            }`}
-          >
-            {isRecording ? (
-              <MicOff className="w-12 h-12" />
-            ) : (
-              <Mic className="w-12 h-12" />
-            )}
-          </Button>
-          
-          <div className="space-y-2">
-            <p className="text-xl font-bold">
-              {isRecording ? '🎤 Recording your response...' : 
-               isProcessing ? '⚡ Processing...' : 
-               userResponses[currentStep] ? '✅ Great response!' : '🎙️ Your turn to speak!'}
-            </p>
-            <p className="text-white/90">
-              {userResponses[currentStep] ? 'Ready for the next step!' : 'Click the microphone and respond to David!'}
-            </p>
-          </div>
 
-          {/* Navigation */}
+          {/* Default to Voice, but allow keyboard toggle */}
+          {!userResponses[currentStep] && (
+            <div className="flex flex-col items-center gap-4">
+
+              {showKeyboard ? (
+                <div className="w-full max-w-lg space-y-4 animate-in fade-in zoom-in duration-300">
+                  <Textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder="Type your answer here..."
+                    className="w-full p-4 rounded-xl text-gray-800 text-lg min-h-[120px] focus:ring-4 focus:ring-white/50 border-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      onClick={handleTextSubmit}
+                      disabled={!textInput.trim() || isProcessing}
+                      className="bg-white text-purple-600 hover:bg-white/90 font-bold px-8 py-4 rounded-full text-lg"
+                    >
+                      Send Answer 🚀
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowKeyboard(false)}
+                      className="bg-transparent border-white text-white hover:bg-white/20 rounded-full"
+                    >
+                      <Mic className="w-4 h-4 mr-2" />
+                      Use Voice
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    onClick={startRecording}
+                    disabled={isProcessing}
+                    className={`w-24 h-24 rounded-full text-white border-4 border-white transition-all duration-300 ${isRecording
+                      ? 'bg-red-500 hover:bg-red-600 animate-pulse-glow'
+                      : 'bg-green-500 hover:bg-green-600 hover:scale-110'
+                      }`}
+                  >
+                    {isRecording ? (
+                      <MicOff className="w-12 h-12" />
+                    ) : (
+                      <Mic className="w-12 h-12" />
+                    )}
+                  </Button>
+
+                  <div className="space-y-2">
+                    <p className="text-xl font-bold">
+                      {isRecording ? '🎤 Recording your response...' :
+                        isProcessing ? '⚡ Processing...' :
+                          '🎙️ Your turn to speak!'}
+                    </p>
+                    <button
+                      onClick={() => setShowKeyboard(true)}
+                      className="text-white/80 hover:text-white underline text-sm transition-colors"
+                    >
+                      Can't speak right now? Use keyboard ⌨️
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Post-response Navigation */}
           {userResponses[currentStep] && (
-            <div className="flex justify-center gap-4">
-              <Button
-                variant="outline"
-                onClick={prevStep}
-                disabled={currentStep === 0}
-                className="bg-white/20 border-white/30 text-white hover:bg-white/30"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                onClick={nextStep}
-                disabled={currentStep >= selectedScenario.steps.length - 1}
-                className="bg-white/20 border-white/30 text-white hover:bg-white/30"
-              >
-                Next
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+            <div className="space-y-4">
+              <p className="text-xl font-bold">✅ Great response!</p>
+              <p className="text-white/90">Ready for the next step!</p>
+
+              <div className="flex justify-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={prevStep}
+                  disabled={currentStep === 0}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={nextStep}
+                  disabled={currentStep >= selectedScenario.steps.length - 1}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                >
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -445,7 +547,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
 
       {/* Emoji Reactions */}
       {userResponses[currentStep] && (
-        <EmojiReactions onReaction={(emoji) => 
+        <EmojiReactions onReaction={(emoji) =>
           toast({
             title: `Thanks for the ${emoji}!`,
             description: "Your feedback helps me improve!",

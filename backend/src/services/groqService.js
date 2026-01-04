@@ -14,7 +14,7 @@ const transcribeAudio = async (filePath) => {
 
         const transcription = await groq.audio.transcriptions.create({
             file: fs.createReadStream(filePath),
-            model: "distil-whisper-large-v3-en",
+            model: "whisper-large-v3",
             response_format: "json",
             language: "en",
             temperature: 0.0,
