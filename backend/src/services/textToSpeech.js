@@ -1,118 +1,66 @@
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+const EdgeTTS = require('./EdgeTTSClient');
 
 /**
- * Service for converting text to speech using ElevenLabs API
+ * Service for converting text to speech using Microsoft Edge's Free Neural TTS
+ * Replaces the paid ElevenLabs integration
  */
 class TextToSpeechService {
-  constructor() {
-    this.apiKey = process.env.ELEVENLABS_API_KEY;
-    this.apiUrl = 'https://api.elevenlabs.io/v1/text-to-speech';
-    this.voiceId = 'pNInz6obpgDQGcFmaJgB'; // Default ElevenLabs voice ID for a friendly male voice
-  }
-
   /**
-   * Convert text to speech using ElevenLabs API
+   * Convert text to speech using Edge TTS
    * @param {string} text - Text to convert to speech
    * @param {string} language - Language code (for voice selection)
    * @returns {Promise<Buffer>} - Audio buffer
    */
   async synthesize(text, language = 'en') {
     try {
-      // Select appropriate voice based on language
-      const voiceId = this.getVoiceIdForLanguage(language);
-      
-      // Make API request
-      const response = await axios.post(
-        `${this.apiUrl}/${voiceId}`,
-        {
-          text,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.3,
-            use_speaker_boost: true
-          }
-        },
-        {
-          headers: {
-            'Accept': 'audio/mpeg',
-            'xi-api-key': this.apiKey,
-            'Content-Type': 'application/json'
-          },
-          responseType: 'arraybuffer'
-        }
-      );
-      
-      return Buffer.from(response.data);
+      // Map language to voice ID
+      // Defaulting to "BashkarNeural" (Bengali India) as requested by user
+      // with custom rate and pitch
+      let voice = 'en-US-AnaNeural';
+      let rate = '0%';
+      let pitch = '+0Hz';
+
+      // Override for specific request
+      // We will use BashkarNeural for everything for now as per user request, 
+      // or logic to switch back to Ana for English if they prefer?
+      // User said "I want the same voice to be implemented", showing Bashkar.
+      // Assuming this overrides everything or just Hindi? 
+      // The screenshot has "bn-IN-BashkarNeural" selected.
+      // I will set it as default or high priority.
+
+      voice = 'bn-IN-BashkarNeural';
+      rate = '-9%';
+      pitch = '+11Hz';
+
+      console.log(`Synthesizing speech with Edge TTS using voice: ${voice}, rate: ${rate}, pitch: ${pitch}`);
+
+      const tts = new EdgeTTS();
+      // Use clean text for SSML to avoid XML errors (basic escaping)
+      const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const buffer = await tts.synthesize(safeText, voice, rate, pitch);
+      return buffer;
+
     } catch (error) {
-      console.error('Text to speech error:', error.response?.data || error.message);
-      
-      // Fallback to Google TTS if ElevenLabs fails
-      return this.fallbackToGoogleTTS(text, language);
+      console.error('Edge TTS error:', error);
+      return Buffer.from('');
     }
   }
 
   /**
-   * Fallback to Google Text-to-Speech API
-   * @param {string} text - Text to convert to speech
+   * Get appropriate Neural voice ID based on language
    * @param {string} language - Language code
-   * @returns {Promise<Buffer>} - Audio buffer
+   * @returns {string} - Edge TTS voice ID
    */
-  async fallbackToGoogleTTS(text, language = 'en') {
-    try {
-      // Map language codes to Google TTS language codes
-      const languageMap = {
-        'en': 'en-US',
-        'hi': 'hi-IN',
-        'mr': 'mr-IN',
-        'gu': 'gu-IN',
-        'ta': 'ta-IN'
-      };
-      
-      const googleLanguage = languageMap[language] || 'en-US';
-      
-      // Use Google TTS API
-      const response = await axios.post(
-        'https://texttospeech.googleapis.com/v1/text:synthesize',
-        {
-          input: { text },
-          voice: { languageCode: googleLanguage, ssmlGender: 'MALE' },
-          audioConfig: { audioEncoding: 'MP3' }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.GOOGLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      // Decode base64 audio content
-      return Buffer.from(response.data.audioContent, 'base64');
-    } catch (error) {
-      console.error('Google TTS fallback error:', error.response?.data || error.message);
-      throw new Error('Failed to synthesize speech');
-    }
-  }
-
-  /**
-   * Get appropriate voice ID based on language
-   * @param {string} language - Language code
-   * @returns {string} - ElevenLabs voice ID
-   */
-  getVoiceIdForLanguage(language) {
-    // These are example voice IDs - replace with actual ElevenLabs voice IDs
+  getVoiceForLanguage(language) {
     const voiceMap = {
-      'en': 'pNInz6obpgDQGcFmaJgB', // English voice
-      'hi': 'pNInz6obpgDQGcFmaJgB', // Hindi voice
-      'mr': 'pNInz6obpgDQGcFmaJgB', // Marathi voice
-      'gu': 'pNInz6obpgDQGcFmaJgB', // Gujarati voice
-      'ta': 'pNInz6obpgDQGcFmaJgB'  // Tamil voice
+      'en': 'en-US-AnaNeural',      // Child-friendly female
+      'hi': 'hi-IN-SwaraNeural',    // Excellent Hindi Neural
+      'mr': 'mr-IN-AarohiNeural',   // Marathi Neural
+      'gu': 'gu-IN-DhwaniNeural',   // Gujarati Neural
+      'ta': 'ta-IN-PallaviNeural'   // Tamil Neural
     };
-    
+
     return voiceMap[language] || voiceMap['en'];
   }
 }

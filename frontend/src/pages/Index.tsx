@@ -4,92 +4,161 @@ import { VoiceChat } from '@/components/VoiceChat';
 import { RoleplayScenarios } from '@/components/RoleplayScenarios';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ProgressTracker } from '@/components/ProgressTracker';
-import { WelcomeAnimation } from '@/components/WelcomeAnimation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Mic, MessageCircle, Drama, Star, X, Lightbulb } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Mic, MessageCircle, Drama, X, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { User } from '@/components/User';
 import RotatingText from '@/components/RotatingText';
-import { SmartTips } from '@/components/SmartTips';
 
-export type AppMode = 'welcome' | 'chat' | 'roleplay' | 'knowledge';
+export type AppMode = 'welcome' | 'chat' | 'roleplay';
 export type Language = 'en' | 'hi' | 'mr' | 'gu' | 'ta';
 
-// Function to get random insightful knowledge tips for children
-const getRandomKnowledgeTip = (language: Language): string => {
-  const knowledgeTips = {
-    'en': [
-      "Did you know? Octopuses have three hearts and blue blood! 🐙",
-      "The Earth is about 4.5 billion years old, that's really, really old! 🌍",
-      "A group of flamingos is called a 'flamboyance'! How fancy! 💖",
-      "Stars twinkle because their light bends when it passes through Earth's atmosphere! ✨",
-      "Your brain is more active when you're sleeping than when you're watching TV! 🧠",
-      "Butterflies taste with their feet! Imagine tasting your food by walking on it! 🦋",
-      "The Great Wall of China is so long it would take about 18 months to walk its entire length! 🧱",
-      "A day on Venus is longer than a year on Venus! That's because Venus spins very slowly! 🪐",
-      "Honey never spoils! Archaeologists have found pots of honey in ancient Egyptian tombs that are over 3,000 years old! 🍯",
-      "Your fingernails grow faster on your dominant hand! Check it out! 💅"
-    ],
-    'hi': [
-      "क्या आप जानते हैं? ऑक्टोपस के तीन दिल और नीला खून होता है! 🐙",
-      "पृथ्वी लगभग 4.5 अरब वर्ष पुरानी है, यह वास्तव में बहुत पुरानी है! 🌍",
-      "फ्लेमिंगो के समूह को 'फ्लैम्बोयंस' कहा जाता है! कितना शानदार! 💖",
-      "तारे टिमटिमाते हैं क्योंकि उनका प्रकाश पृथ्वी के वायुमंडल से गुजरने पर मुड़ जाता है! ✨",
-      "जब आप सोते हैं तो आपका मस्तिष्क टीवी देखने की तुलना में अधिक सक्रिय होता है! 🧠"
-    ],
-    'mr': [
-      "तुम्हाला माहित आहे का? ऑक्टोपसला तीन हृदये आणि निळे रक्त असते! 🐙",
-      "पृथ्वी सुमारे 4.5 अब्ज वर्षे जुनी आहे, ती खरंच खूप जुनी आहे! 🌍",
-      "फ्लेमिंगोच्या समूहाला 'फ्लैम्बोयन्स' म्हणतात! किती छान! 💖",
-      "तारे टिमटिमतात कारण त्यांचा प्रकाश पृथ्वीच्या वातावरणातून जाताना वाकतो! ✨",
-      "तुम्ही झोपलेले असताना तुमचे मेंदू टीव्ही पाहण्यापेक्षा जास्त सक्रिय असते! 🧠"
-    ],
-    'gu': [
-      "શું તમે જાણો છો? ઓક્ટોપસને ત્રણ હૃદય અને વાદળી રક્ત હોય છે! 🐙",
-      "પૃથ્વી લગભગ 4.5 અબજ વર્ષ જૂની છે, તે ખરેખર ખૂબ જૂની છે! 🌍",
-      "ફ્લેમિંગોના સમૂહને 'ફ્લેમ્બોયન્સ' કહેવામાં આવે છે! કેટલું ભવ્ય! 💖",
-      "તારાઓ ટમટમે છે કારણ કે તેમનો પ્રકાશ પૃથ્વીના વાતાવરણમાંથી પસાર થતી વખતે વળે છે! ✨",
-      "જ્યારે તમે ઊંઘી રહ્યા હોવ ત્યારે તમારું મગજ ટીવી જોવા કરતાં વધુ સક્રિય હોય છે! 🧠"
-    ],
-    'ta': [
-      "உங்களுக்குத் தெரியுமா? ஆக்டோபஸுக்கு மூன்று இதயங்களும் நீல இரத்தமும் உள்ளது! 🐙",
-      "பூமி சுமார் 4.5 பில்லியன் ஆண்டுகள் பழமையானது, அது உண்மையிலேயே மிகவும் பழமையானது! 🌍",
-      "ஃப்ளெமிங்கோக்களின் குழுவை 'ஃப்ளாம்பாயன்ஸ்' என்று அழைக்கிறார்கள்! எவ்வளவு அழகானது! 💖",
-      "நட்சத்திரங்கள் மின்னுகின்றன ஏனெனில் அவற்றின் ஒளி பூமியின் வளிமண்டலத்தின் வழியாக செல்லும்போது வளைகிறது! ✨",
-      "நீங்கள் தூங்கும்போது உங்கள் மூளை டிவி பார்ப்பதை விட அதிகமாக செயல்படுகிறது! 🧠"
-    ]
-  };
-
-  const tips = knowledgeTips[language] || knowledgeTips['en'];
-  return tips[Math.floor(Math.random() * tips.length)];
-};
+type AuthStep = 'email' | 'login' | 'register';
 
 const Index = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('welcome');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('en');
-  const [currentTip, setCurrentTip] = useState<string>(getRandomKnowledgeTip('en'));
   const [userProgress, setUserProgress] = useState({
     chatSessions: 0,
     roleplayCompleted: 0,
     streak: 0,
     badges: [] as string[]
   });
+
+  // Auth State
   const [showAuth, setShowAuth] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // This will be replaced with actual auth state
-  const [userName, setUserName] = useState<string>(''); // User's name from authentication
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string>('');
+
+  const [authStep, setAuthStep] = useState<AuthStep>('email');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [country, setCountry] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Data Persistence Helper
+  const getUserData = (userEmail: string) => {
+    return JSON.parse(localStorage.getItem(`magic_minds_progress_${userEmail}`) || '{"chatSessions": 0, "roleplayCompleted": 0, "streak": 0, "badges": []}');
+  };
+
+  const saveUserData = (userEmail: string, data: any) => {
+    localStorage.setItem(`magic_minds_progress_${userEmail}`, JSON.stringify(data));
+  };
+
+  // Mock DB helper
+  const getUsers = () => JSON.parse(localStorage.getItem('magic_minds_users') || '{}');
+  const saveUser = (email: string, data: any) => {
+    const users = getUsers();
+    users[email] = data;
+    localStorage.setItem('magic_minds_users', JSON.stringify(users));
+  };
+  const checkUserExists = (email: string) => !!getUsers()[email];
+  const verifyUser = (email: string, pass: string) => {
+    const user = getUsers()[email];
+    return user && user.password === pass;
+  };
 
   useEffect(() => {
-    // Load user progress from localStorage
-    const savedProgress = localStorage.getItem('david-progress');
-    if (savedProgress) {
-      setUserProgress(JSON.parse(savedProgress));
+    // Load progress when user changes (or at start if logged in persistence existed)
+    if (isLoggedIn && email) {
+      setUserProgress(getUserData(email));
+      // Also try to get name from storage if not set
+      if (!userName) {
+        const user = getUsers()[email];
+        if (user && user.name) setUserName(user.name);
+      }
     }
-  }, []);
+  }, [isLoggedIn, email]);
 
-  // Update the current tip when language changes
-  useEffect(() => {
-    setCurrentTip(getRandomKnowledgeTip(selectedLanguage));
-  }, [selectedLanguage]);
+  const resetAuth = () => {
+    setAuthStep('email');
+    setEmail('');
+    setPassword('');
+    setCountry('');
+    setName('');
+    setAuthError('');
+    setShowPassword(false);
+  };
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+
+    setIsLoading(true);
+    setAuthError('');
+
+    // Simulate API check
+    setTimeout(() => {
+      const exists = checkUserExists(email);
+      setAuthStep(exists ? 'login' : 'register');
+      setIsLoading(false);
+    }, 600);
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) return;
+
+    setIsLoading(true);
+    setAuthError('');
+
+    setTimeout(() => {
+      if (verifyUser(email, password)) {
+        const user = getUsers()[email];
+        completeLogin(user.name || email.split('@')[0], email);
+      } else {
+        setAuthError('Invalid password');
+      }
+      setIsLoading(false);
+    }, 800);
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password || !country) {
+      setAuthError('Please fill all fields');
+      return;
+    }
+
+    setIsLoading(true);
+    setAuthError('');
+
+    setTimeout(() => {
+      const name = email.split('@')[0]; // Simple name extraction
+      saveUser(email, { password, country, name });
+      completeLogin(name, email);
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  const completeLogin = (name: string, emailStr: string) => {
+    setIsLoggedIn(true);
+    setUserName(name);
+    setShowAuth(false);
+    resetAuth();
+  };
+
+  const handleGoogleLogin = () => {
+    // Simulate Google Login
+    setIsLoading(true);
+    setTimeout(() => {
+      // Mocking a specific Google User
+      const googleEmail = "google_user@gmail.com";
+      const googleName = "Google Fan";
+
+      if (!checkUserExists(googleEmail)) {
+        saveUser(googleEmail, { password: 'mock-pass', country: 'us', name: googleName });
+      }
+
+      completeLogin(googleName, googleEmail);
+      setIsLoading(false);
+    }, 1500);
+  };
 
   const updateProgress = (type: 'chat' | 'roleplay') => {
     setUserProgress(prev => {
@@ -98,15 +167,10 @@ const Index = () => {
         chatSessions: type === 'chat' ? prev.chatSessions + 1 : prev.chatSessions,
         roleplayCompleted: type === 'roleplay' ? prev.roleplayCompleted + 1 : prev.roleplayCompleted,
       };
-      
-      // Add badges based on milestones
-      if (updated.chatSessions === 5 && !updated.badges.includes('chatter')) {
-        updated.badges.push('chatter');
-      }
-      if (updated.roleplayCompleted === 3 && !updated.badges.includes('actor')) {
-        updated.badges.push('actor');
-      }
-      
+
+      if (updated.chatSessions === 5 && !updated.badges.includes('chatter')) updated.badges.push('chatter');
+      if (updated.roleplayCompleted === 3 && !updated.badges.includes('actor')) updated.badges.push('actor');
+
       localStorage.setItem('david-progress', JSON.stringify(updated));
       return updated;
     });
@@ -114,12 +178,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100 relative overflow-hidden">
-      {/* Floating background elements */}
+      {/* Background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-16 h-16 bg-gradient-to-r from-yellow-300 to-orange-300 rounded-full opacity-20 animate-float"></div>
-        <div className="absolute top-40 right-20 w-12 h-12 bg-gradient-to-r from-pink-300 to-purple-300 rounded-full opacity-30 animate-float" style={{animationDelay: '1s'}}></div>
-        <div className="absolute bottom-32 left-1/4 w-20 h-20 bg-gradient-to-r from-blue-300 to-green-300 rounded-full opacity-25 animate-float" style={{animationDelay: '2s'}}></div>
-        <div className="absolute top-60 left-1/2 w-8 h-8 bg-gradient-to-r from-green-300 to-blue-300 rounded-full opacity-40 animate-float" style={{animationDelay: '3s'}}></div>
+        <div className="absolute top-40 right-20 w-12 h-12 bg-gradient-to-r from-pink-300 to-purple-300 rounded-full opacity-30 animate-float" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute bottom-32 left-1/4 w-20 h-20 bg-gradient-to-r from-blue-300 to-green-300 rounded-full opacity-25 animate-float" style={{ animationDelay: '2s' }}></div>
       </div>
 
       {/* Header */}
@@ -133,20 +196,14 @@ const Index = () => {
             <p className="text-lg text-purple-600 font-medium">Your magical learning companion! ✨</p>
           </div>
         </div>
-        
+
         <div className="flex items-start gap-4">
-          <LanguageSelector 
-            selectedLanguage={selectedLanguage}
-            onLanguageChange={setSelectedLanguage}
-          />
+          <LanguageSelector selectedLanguage={selectedLanguage} onLanguageChange={setSelectedLanguage} />
           <ProgressTracker progress={userProgress} />
-          <User 
+          <User
             isLoggedIn={isLoggedIn}
             onClick={() => setShowAuth(!showAuth)}
-            width={24}
-            height={24}
-            strokeWidth={2}
-            stroke="#8b5cf6"
+            width={24} height={24} strokeWidth={2} stroke="#8b5cf6"
           />
         </div>
       </header>
@@ -160,314 +217,308 @@ const Index = () => {
               <h2 className="text-6xl font-bold mb-4 leading-tight">
                 Hello,{' '}
                 <RotatingText
-                  texts={
-                    isLoggedIn && userName 
-                      ? [userName, 'smart friend', 'little explorer', 'wonder seeker', 'clever kid', userName]
-                      : userName === 'Guest'
-                      ? ['Guest']
-                      : ['smart friend', 'little explorer', 'wonder seeker', 'clever kid']
-                  }
+                  texts={isLoggedIn && userName ? [userName] : ['smart friend', 'little explorer', 'wonder seeker']}
                   className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 bg-clip-text text-transparent"
                   interval={2000}
-                  shouldStop={isLoggedIn && userName && userName !== 'Guest'}
                 />
                 ! 👋
               </h2>
               <p className="text-2xl text-purple-700 mb-8 max-w-2xl mx-auto leading-relaxed">
-                I'm your magical AI tutor David! Let's learn together through fun conversations and exciting role-playing adventures! 🌟
+                I'm your magical AI tutor David! Let's learn together! 🌟
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-8">
-              <Card 
+            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-12">
+              <Card
                 className="p-8 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-purple-500 to-pink-500 text-white border-0 relative overflow-hidden"
-                onClick={() => setCurrentMode('chat')}
+                onClick={() => {
+                  if (!isLoggedIn) setShowAuth(true);
+                  else setCurrentMode('chat');
+                }}
               >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16"></div>
                 <div className="relative z-10">
                   <MessageCircle className="h-16 w-16 mb-4 mx-auto animate-float" />
                   <h3 className="text-2xl font-bold mb-3">Free Chat Mode</h3>
-                  <p className="text-purple-100 text-lg">
-                    Ask me anything! Practice speaking and get answers to all your questions! 🗣️
-                  </p>
+                  <p className="text-purple-100 text-lg">Ask me anything! 🗣️</p>
+                  {!isLoggedIn && <span className="inline-block mt-2 text-sm bg-white/20 px-2 py-1 rounded">Login Required</span>}
                 </div>
               </Card>
 
-              <Card 
+              <Card
                 className="p-8 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-blue-500 to-green-500 text-white border-0 relative overflow-hidden"
-                onClick={() => setCurrentMode('roleplay')}
+                onClick={() => {
+                  if (!isLoggedIn) setShowAuth(true);
+                  else setCurrentMode('roleplay');
+                }}
               >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16"></div>
                 <div className="relative z-10">
-                  <Drama className="h-16 w-16 mb-4 mx-auto animate-float" style={{animationDelay: '0.5s'}} />
+                  <Drama className="h-16 w-16 mb-4 mx-auto animate-float" style={{ animationDelay: '0.5s' }} />
                   <h3 className="text-2xl font-bold mb-3">Roleplay Adventures</h3>
-                  <p className="text-blue-100 text-lg">
-                    Practice real-life conversations! School, store, home and more! 🎭
-                  </p>
+                  <p className="text-blue-100 text-lg">Practice real-life conversations! 🎭</p>
+                  {!isLoggedIn && <span className="inline-block mt-2 text-sm bg-white/20 px-2 py-1 rounded">Login Required</span>}
                 </div>
               </Card>
-
-              <Card 
-                className="p-8 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-yellow-500 to-orange-500 text-white border-0 relative overflow-hidden"
-                onClick={() => setCurrentMode('knowledge')}
-              >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16"></div>
-                <div className="relative z-10">
-                  <Lightbulb className="h-16 w-16 mb-4 mx-auto animate-float" style={{animationDelay: '1s'}} />
-                  <h3 className="text-2xl font-bold mb-3">Knowledge Explorer</h3>
-                  <p className="text-yellow-100 text-lg">
-                    Discover amazing facts and expand your knowledge about our wonderful world! 🌟
-                  </p>
-                </div>
-              </Card>
-            </div>
-
-            <div className="mt-4 mb-12">
-              <div className="relative">
-                <SmartTips 
-                  tip={currentTip} 
-                  type="general" 
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-2 right-2 bg-white/30 hover:bg-white/50 rounded-full p-1"
-                  onClick={() => setCurrentTip(getRandomKnowledgeTip(selectedLanguage))}
-                >
-                  <Star className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
 
             <div className="flex justify-center">
-              <Button 
-                onClick={() => setCurrentMode('chat')}
+              <Button
+                onClick={() => {
+                  if (!isLoggedIn) setShowAuth(true);
+                  else setCurrentMode('chat');
+                }}
                 className="btn-magical text-xl px-12 py-6"
               >
                 <Mic className="mr-3 h-6 w-6" />
-                Start Learning Now!
+                {isLoggedIn ? "Start Learning Now!" : "Login to Start"}
               </Button>
-            </div>
-            
-            {/* Language Demo Section */}
-            <div className="mt-12 p-6 bg-white/80 backdrop-blur rounded-2xl border border-purple-200">
-              <h3 className="text-xl font-bold text-purple-800 mb-4">✨ Try Different Languages!</h3>
-              <p className="text-purple-600 mb-4">Click on a language to hear how David sounds in different languages:</p>
-              <div className="flex justify-center gap-3 flex-wrap">
-                {['en', 'hi', 'mr', 'gu', 'ta'].map((lang) => (
-                  <Button
-                    key={lang}
-                    onClick={() => {
-                      setSelectedLanguage(lang as Language);
-                      // Update knowledge tip for the new language
-                      setCurrentTip(getRandomKnowledgeTip(lang as Language));
-                      
-                      // Demo TTS in selected language
-                      const demoText = lang === 'en' ? 'Hello! I am David, your learning friend!' :
-                                     lang === 'hi' ? 'नमस्ते! मैं डेविड हूं, आपका सीखने वाला मित्र!' :
-                                     lang === 'mr' ? 'नमस्कार! मी डेविड आहे, तुमचा शिकण्याचा मित्र!' :
-                                     lang === 'gu' ? 'નમસ્તે! હું ડેવિડ છું, તમારો શીખવાનો મિત્ર!' :
-                                     'வணக்கம்! நான் டேவிட், உங்கள் கற்றல் நண்பன்!';
-                      
-                       if ('speechSynthesis' in window) {
-                         const utterance = new SpeechSynthesisUtterance(demoText);
-                         utterance.rate = 0.8;
-                         utterance.pitch = 1.1;
-                         
-                         // Set proper language codes for better pronunciation
-                         const languageMap = {
-                           'en': 'en-US',
-                           'hi': 'hi-IN',
-                           'mr': 'mr-IN', 
-                           'gu': 'gu-IN',
-                           'ta': 'ta-IN'
-                         };
-                         utterance.lang = languageMap[lang as keyof typeof languageMap] || 'en-US';
-                         
-                         window.speechSynthesis.speak(utterance);
-                       }
-                    }}
-                    variant={selectedLanguage === lang ? "default" : "outline"}
-                    className={`transition-all duration-300 hover:scale-105 ${
-                      selectedLanguage === lang 
-                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 animate-pulse-glow" 
-                        : "hover:bg-purple-50 hover:shadow-md"
-                    }`}
-                  >
-                    {lang === 'en' ? '🇺🇸 English' :
-                     lang === 'hi' ? '🇮🇳 हिंदी' :
-                     lang === 'mr' ? '🇮🇳 मराठी' :
-                     lang === 'gu' ? '🇮🇳 ગુજરાતી' :
-                     '🇮🇳 தமிழ்'}
-                  </Button>
-                ))}
-              </div>
             </div>
           </div>
         )}
 
         {currentMode === 'chat' && (
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentMode('welcome')}
-                className="mb-4 hover:bg-purple-50"
-              >
-                ← Back to Home
-              </Button>
-              <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Chat with David! 💬
-              </h2>
-              <p className="text-purple-700 text-lg">
-                Ask me anything and practice your speaking skills!
-              </p>
-            </div>
-            <VoiceChat 
-              language={selectedLanguage}
-              onSessionComplete={() => updateProgress('chat')}
-            />
+            <Button variant="outline" onClick={() => setCurrentMode('welcome')} className="mb-4">← Home</Button>
+            <VoiceChat language={selectedLanguage} onSessionComplete={() => updateProgress('chat')} />
           </div>
         )}
 
         {currentMode === 'roleplay' && (
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentMode('welcome')}
-                className="mb-4 hover:bg-purple-50"
-              >
-                ← Back to Home
-              </Button>
-              <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-                Roleplay Adventures! 🎭
-              </h2>
-              <p className="text-blue-700 text-lg">
-                Practice conversations in different real-life situations!
-              </p>
-            </div>
-            <RoleplayScenarios 
-              language={selectedLanguage}
-              onScenarioComplete={() => updateProgress('roleplay')}
-            />
-          </div>
-        )}
-
-        {currentMode === 'knowledge' && (
-          <div className="max-w-4xl mx-auto py-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-purple-700">Knowledge Explorer</h2>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setCurrentMode('welcome')}
-                className="flex items-center gap-1"
-              >
-                <X size={16} />
-                Close
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {['en', 'hi', 'mr', 'gu', 'ta'].map((lang) => (
-                <SmartTips 
-                  key={lang}
-                  tip={getRandomKnowledgeTip(lang as Language)} 
-                  type={Math.random() > 0.5 ? 'general' : 'encouragement'}
-                />
-              ))}
-            </div>
+            <Button variant="outline" onClick={() => setCurrentMode('welcome')} className="mb-4">← Home</Button>
+            <RoleplayScenarios language={selectedLanguage} onScenarioComplete={() => updateProgress('roleplay')} />
           </div>
         )}
       </main>
 
-      {/* Mode switcher floating buttons */}
-      {currentMode !== 'welcome' && (
-        <div className="fixed bottom-8 right-8 flex flex-col gap-4">
-          <Button
-            onClick={() => setCurrentMode(currentMode === 'chat' ? 'roleplay' : 'chat')}
-            className="btn-magical rounded-full w-16 h-16 p-0 shadow-lg"
-            title={currentMode === 'chat' ? 'Switch to Roleplay' : 'Switch to Chat'}
-          >
-            {currentMode === 'chat' ? <Drama className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
-          </Button>
-        </div>
-      )}
-
       {/* Authentication Modal */}
       {showAuth && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <Card className="p-8 bg-white/95 backdrop-blur border-purple-200 max-w-md w-full mx-4 relative">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-[400px] bg-white border-0 shadow-2xl overflow-hidden relative">
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setShowAuth(false)}
-              className="absolute top-4 right-4 hover:bg-purple-50"
+              onClick={() => { setShowAuth(false); resetAuth(); }}
+              className="absolute top-2 right-2 hover:bg-gray-100 rounded-full z-10"
             >
-              <X className="h-5 w-5 text-purple-600" />
+              <X className="h-5 w-5 text-gray-500" />
             </Button>
-            
-            <div className="text-center space-y-6">
-              <div className="flex justify-center">
-                <User 
-                  isLoggedIn={isLoggedIn}
-                  width={48}
-                  height={48}
-                  strokeWidth={2.5}
-                  stroke="#8b5cf6"
-                />
-              </div>
-              
-              <div>
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-                  {isLoggedIn ? 'Account Settings' : 'Welcome to Magic Minds'}
-                </h2>
-                <p className="text-purple-600">
-                  {isLoggedIn ? 'Manage your account and preferences' : 'Sign in to save your progress and personalize your learning experience'}
-                </p>
+
+            {/* Auth Content */}
+            <div className="p-8">
+              {/* Header Icon */}
+              <div className="flex justify-center mb-6">
+                <div className="bg-purple-100 p-3 rounded-2xl">
+                  <User className="h-8 w-8 text-purple-600" />
+                </div>
               </div>
 
-              {!isLoggedIn ? (
-                <div className="space-y-4">
-                  <Button 
-                    onClick={() => {
-                      setIsLoggedIn(true);
-                      setUserName('Parent'); // Extract name from email or use a proper name
-                      setShowAuth(false);
-                    }}
-                    className="w-full bg-transparent text-purple-600 border-2 border-purple-300 hover:bg-purple-50 hover:border-purple-400"
-                  >
-                    Sign In with Google
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => {
-                      setIsLoggedIn(true);
-                      setUserName('Guest'); // Guest user name
-                      setShowAuth(false);
-                    }}
-                    className="w-full border-purple-200 text-purple-600 hover:bg-purple-50"
-                  >
-                    Continue as Guest
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <p className="text-purple-700 font-medium">Logged in as:</p>
-                    <p className="text-purple-600">{userName}</p>
+              {isLoggedIn ? (
+                <div className="text-center space-y-6">
+                  <h2 className="text-2xl font-bold text-gray-800">Account</h2>
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-sm text-gray-500 mb-1">Signed in as</p>
+                    <p className="font-semibold text-gray-800">{email}</p>
                   </div>
-                  <Button 
-                    variant="outline"
-                    onClick={() => {
-                      setIsLoggedIn(false);
-                      setUserName('');
-                    }}
-                    className="w-full border-red-200 text-red-600 hover:bg-red-50"
+                  <Button
+                    onClick={() => { setIsLoggedIn(false); setUserName(''); resetAuth(); }}
+                    className="w-full bg-red-50 text-red-600 hover:bg-red-100 border-0"
                   >
                     Sign Out
                   </Button>
                 </div>
+              ) : (
+                <>
+                  {/* Step 1: Email */}
+                  {authStep === 'email' && (
+                    <form onSubmit={handleEmailSubmit} className="space-y-6">
+                      <div className="text-center mb-6">
+                        <h2 className="text-2xl font-bold text-gray-900">Welcome</h2>
+                        <p className="text-gray-500 mt-2">Log in to Magic Minds to continue.</p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Parent's Email Address <span className="text-red-500">*</span></Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="name@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            className="h-12 border-gray-300 focus:border-purple-500 focus:ring-purple-500 transition-all"
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-lg transition-colors"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? <Loader2 className="animate-spin" /> : "Continue"}
+                        </Button>
+                      </div>
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-200"></span></div>
+                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-gray-500">Or</span></div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleGoogleLogin}
+                        className="w-full h-12 border-gray-300 hover:bg-gray-50 text-gray-700 font-medium flex items-center justify-center gap-2"
+                        disabled={isLoading}
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26s.01 0 .01-.01z" fill="#FBBC05" />
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                        </svg>
+                        Continue with Google
+                      </Button>
+                    </form>
+                  )}
+
+                  {/* Step 2: Login */}
+                  {authStep === 'login' && (
+                    <form onSubmit={handleLogin} className="space-y-6 animate-in slide-in-from-right-8 fade-in-20 duration-300">
+                      <div className="mb-6">
+                        <button
+                          type='button'
+                          onClick={() => setAuthStep('email')}
+                          className="text-gray-400 hover:text-gray-600 flex items-center gap-1 text-sm mb-4 transition-colors"
+                        >
+                          <ArrowLeft className="w-4 h-4" /> Change email
+                        </button>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h2>
+                        <div className="p-3 bg-gray-50 rounded border border-gray-200 text-sm text-gray-600 flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                            {email[0].toUpperCase()}
+                          </div>
+                          {email}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="password">Password <span className="text-red-500">*</span></Label>
+                          <div className="relative">
+                            <Input
+                              id="password"
+                              type={showPassword ? "text" : "password"}
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              className={`h-12 border-gray-300 pr-10 ${authError ? 'border-red-500 focus:ring-red-500' : ''}`}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {authError && <p className="text-sm text-red-500">{authError}</p>}
+                        </div>
+                        <Button
+                          type="submit"
+                          className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-lg"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? <Loader2 className="animate-spin" /> : "Log in"}
+                        </Button>
+                        <div className="text-center">
+                          <button type="button" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Forgot password?</button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Step 3: Register */}
+                  {authStep === 'register' && (
+                    <form onSubmit={handleRegister} className="space-y-6 animate-in slide-in-from-right-8 fade-in-20 duration-300">
+                      <div className="mb-6">
+                        <button
+                          type='button'
+                          onClick={() => setAuthStep('email')}
+                          className="text-gray-400 hover:text-gray-600 flex items-center gap-1 text-sm mb-4"
+                        >
+                          <ArrowLeft className="w-4 h-4" /> Change email
+                        </button>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Sign up</h2>
+                        <p className="text-gray-500 text-sm">Create an account for {email}</p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
+                          <Input
+                            id="name"
+                            type="text"
+                            placeholder="e.g. John Doe"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="h-12 border-gray-300"
+                            autoFocus
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-password">Password <span className="text-red-500">*</span></Label>
+                          <div className="relative">
+                            <Input
+                              id="reg-password"
+                              type={showPassword ? "text" : "password"}
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              className="h-12 border-gray-300 pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="country">Country</Label>
+                          <Select value={country} onValueChange={setCountry}>
+                            <SelectTrigger className="h-12 border-gray-300">
+                              <SelectValue placeholder="Select Country" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="in">India 🇮🇳</SelectItem>
+                              <SelectItem value="us">United States 🇺🇸</SelectItem>
+                              <SelectItem value="uk">United Kingdom 🇬🇧</SelectItem>
+                              <SelectItem value="ca">Canada 🇨🇦</SelectItem>
+                              <SelectItem value="au">Australia 🇦🇺</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {authError && <p className="text-sm text-red-500">{authError}</p>}
+
+                        <div className="text-xs text-gray-500">
+                          By continuing, you agree to our Terms of Service and Privacy Policy.
+                        </div>
+
+                        <Button
+                          type="submit"
+                          className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-lg"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? <Loader2 className="animate-spin" /> : "Continue"}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </>
               )}
             </div>
           </Card>

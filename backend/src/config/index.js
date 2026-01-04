@@ -14,7 +14,7 @@ const config = {
   
   // API Keys
   apiKeys: {
-    openai: process.env.OPENAI_API_KEY,
+    huggingface: process.env.HUGGINGFACE_API_KEY,
     elevenlabs: process.env.ELEVENLABS_API_KEY,
     google: process.env.GOOGLE_API_KEY
   },

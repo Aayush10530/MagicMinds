@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { DavidAvatar } from './DavidAvatar';
 import { EmojiReactions } from './EmojiReactions';
 import { SmartTips } from './SmartTips';
-import { Mic, MicOff, Play, ArrowLeft, ArrowRight, Home, ShoppingCart, School, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Play, ArrowLeft, ArrowRight, Home, ShoppingCart, School } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface RoleplayScenario {
@@ -109,51 +109,122 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   const [isProcessing, setIsProcessing] = useState(false);
   const [userResponses, setUserResponses] = useState<string[]>([]);
   const { toast } = useToast();
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const startRecording = async () => {
     try {
-      setIsRecording(true);
-      // Simulate recording
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setIsRecording(false);
-      setIsProcessing(true);
-      
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockResponses = [
-        "My name is Sarah",
-        "Yes, I love school!",
-        "I like art class",
-        "I want to buy apples",
-        "I want three apples",
-        "Thank you very much!",
-        "I live with my mom and dad",
-        "Yes, I help clean my room",
-        "I like reading books"
-      ];
-      
-      const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-      setUserResponses(prev => [...prev, response]);
-      setIsProcessing(false);
-      
-      // Move to next step after a delay
-      setTimeout(() => {
-        if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
-          setCurrentStep(prev => prev + 1);
-        } else {
-          // Scenario complete
-          toast({
-            title: "Scenario Complete! 🎉",
-            description: "Great job! You completed the roleplay successfully!",
-          });
-          onScenarioComplete();
-        }
-      }, 1500);
+      // Use real speech recognition
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = getLanguageCode(language);
+        
+        recognition.onstart = () => {
+          setIsRecording(true);
+        };
+        
+        recognition.onresult = async (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setIsRecording(false);
+          setIsProcessing(true);
+          
+          console.log('Roleplay transcript:', transcript);
+          
+          // Add user response
+          setUserResponses(prev => [...prev, transcript]);
+          
+          // Send to backend for AI response
+          try {
+            const response = await fetch('http://localhost:3000/api/voice/roleplay', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                userMessage: transcript,
+                language: language,
+                scenarioId: selectedScenario?.id,
+                scenarioContext: selectedScenario?.title,
+                currentPrompt: selectedScenario?.steps[currentStep]?.aiPrompt
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error(`API Error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              // Play AI response
+              playAIPrompt(result.aiMessage);
+            }
+          } catch (error) {
+            console.error('Roleplay API error:', error);
+            // Continue with scenario even if API fails
+          }
+          
+          setIsProcessing(false);
+          
+          // Move to next step after a delay
+          setTimeout(() => {
+            if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
+              setCurrentStep(prev => prev + 1);
+            } else {
+              // Scenario complete
+              toast({
+                title: "Scenario Complete! 🎉",
+                description: "Great job! You completed the roleplay successfully!",
+              });
+              onScenarioComplete();
+            }
+          }, 2000);
+        };
+        
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsRecording(false);
+          setIsProcessing(false);
+          
+          if (event.error === 'network') {
+            toast({
+              title: "Voice Recognition Unavailable",
+              description: "Please try again or use a different browser.",
+              variant: "destructive"
+            });
+          } else {
+            toast({
+              title: "Speech Recognition Error",
+              description: "Please try speaking more clearly.",
+              variant: "destructive"
+            });
+          }
+        };
+        
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+        
+        // Start recognition
+        recognition.start();
+        
+        // Stop after 10 seconds
+        setTimeout(() => {
+          if (isRecording) {
+            recognition.stop();
+          }
+        }, 10000);
+        
+      } else {
+        // Fallback for browsers without speech recognition
+        toast({
+          title: "Speech Recognition Not Available",
+          description: "Your browser doesn't support speech recognition. Please use a modern browser.",
+          variant: "destructive"
+        });
+      }
       
     } catch (error) {
       setIsRecording(false);
@@ -164,6 +235,17 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         variant: "destructive"
       });
     }
+  };
+
+  const getLanguageCode = (language: string): string => {
+    const languageMap: { [key: string]: string } = {
+      'en': 'en-US',
+      'hi': 'hi-IN',
+      'mr': 'mr-IN',
+      'gu': 'gu-IN',
+      'ta': 'ta-IN'
+    };
+    return languageMap[language] || 'en-US';
   };
 
   const playAIPrompt = (text: string) => {

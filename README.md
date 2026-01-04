@@ -1,109 +1,101 @@
 # Magic Minds - AI Voice Tutor for Children
 
-Magic Minds is an interactive AI voice tutor platform designed to help children learn through natural conversation and roleplay scenarios. The platform features two main modes:
+## Project Overview
 
-## 🌟 Features
+**Magic Minds** is an AI-powered voice tutor for children that provides:
+- **Free-flow AI chatbot** with voice interaction
+- **Interactive roleplay scenarios** for real-life conversations
+- **Multi-language support** (English, Hindi, Marathi, Gujarati, Tamil)
+- **Child-friendly, educational responses**
 
-### 1️⃣ Free-flow AI Chatbot (Voice-based tutor)
-- Voice-activated AI tutor that listens to children's questions
-- Processes speech using OpenAI Whisper for accurate transcription
-- Generates age-appropriate responses using GPT
-- Speaks back using ElevenLabs or Google TTS for natural voice interaction
+## Project Structure
 
-### 2️⃣ Interactive Roleplay (Scenario-based learning)
-- Guided conversation scenarios to build confidence and vocabulary
-- Real-life situations like school, store, and home interactions
-- Progressive difficulty levels to match learning progress
-- Immediate feedback and encouragement
+This project is organized into two main directories:
 
-## 🚀 Tech Stack
+```
+MagicMinds/
+├── frontend/          # React + TypeScript frontend application
+│   ├── src/          # Source code
+│   ├── public/       # Static assets
+│   ├── package.json  # Frontend dependencies
+│   └── ...          # Frontend configuration files
+│
+└── backend/          # Node.js backend application (to be developed)
+    ├── BACKEND_SUMMARY.md    # Backend development plan
+    └── CHAT_HISTORY.md       # Development history
+```
+
+## Getting Started
+
+### Frontend Development
+
+The frontend is a complete React + TypeScript application with modern UI components.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:8080`
+
+### Backend Development
+
+The backend is planned and ready for development. See the `backend/` folder for:
+- `BACKEND_SUMMARY.md` - Comprehensive backend development guide
+- `CHAT_HISTORY.md` - Development history and decisions
+
+## Technology Stack
 
 ### Frontend
-- React with TypeScript
-- Vite for fast development
-- TailwindCSS for styling
-- Radix UI components
-- Web Speech API for browser-based speech capabilities
+- **React 18** with TypeScript
+- **Vite** for build tooling
+- **Tailwind CSS** for styling
+- **shadcn/ui** for UI components
+- **React Router** for navigation
 
-### Backend
-- Node.js with Express
-- OpenAI API integration (Whisper for STT, GPT for responses)
-- ElevenLabs API for high-quality TTS
-- Socket.io for real-time communication
+### Backend (Planned)
+- **Node.js/Express** - Main backend framework
+- **OpenAI Whisper** - Speech-to-Text processing
+- **OpenAI GPT-4** - AI response generation
+- **ElevenLabs** - Text-to-Speech with multiple voices
+- **Socket.io** - Real-time communication
 
-## 🛠️ Setup Instructions
+## Development Status
 
-### Prerequisites
-- Node.js (v18 or higher)
-- API keys for OpenAI, ElevenLabs, and Google (optional)
+- ✅ **Frontend**: Complete and production-ready
+- 🚧 **Backend**: Ready for development (see backend documentation)
 
-### Backend Setup
-1. Navigate to the backend directory:
-   ```
-   cd backend
-   ```
+## Features
 
-2. Install dependencies:
-   ```
-   npm install
-   ```
+### Frontend Features
+- Voice chat interface with David (AI tutor)
+- Interactive roleplay scenarios
+- Multi-language support
+- Progress tracking
+- Modern, responsive UI
+- Child-friendly design
 
-3. Configure environment variables:
-   - Copy `.env` and add your API keys:
-     - `OPENAI_API_KEY` - Your OpenAI API key
-     - `ELEVENLABS_API_KEY` - Your ElevenLabs API key
-     - `GOOGLE_API_KEY` - Your Google API key (optional fallback)
+### Backend Features (Planned)
+- Speech-to-text processing
+- AI response generation
+- Text-to-speech synthesis
+- Real-time communication
+- Multi-language support
+- User progress tracking
 
-4. Start the backend server:
-   ```
-   npm run dev
-   ```
+## Contributing
 
-### Frontend Setup
-1. Navigate to the frontend directory:
-   ```
-   cd frontend
-   ```
+1. Frontend changes: Work in the `frontend/` directory
+2. Backend development: Work in the `backend/` directory
+3. Follow the existing code style and patterns
+4. Update documentation as needed
 
-2. Install dependencies:
-   ```
-   npm install
-   ```
+## License
 
-3. Configure environment variables:
-   - Create a `.env.local` file with:
-     ```
-     VITE_API_URL=http://localhost:3000
-     ```
+This project is proprietary and confidential.
 
-4. Start the frontend development server:
-   ```
-   npm run dev
-   ```
+---
 
-5. Open your browser and navigate to `http://localhost:5173`
-
-## 📱 Usage
-
-### Voice Chat Mode
-1. Click on the "Chat with David" option on the home screen
-2. Press the microphone button and speak your question
-3. Wait for David to process and respond with voice and text
-
-### Roleplay Mode
-1. Select "Practice Roleplay" on the home screen
-2. Choose a scenario (School, Store, or Home)
-3. Follow the guided conversation prompts
-4. Speak your responses when the microphone is active
-
-## 🔮 Future Enhancements
-
-- User accounts and progress tracking
-- More diverse roleplay scenarios
-- Customizable AI tutor personalities
-- Mobile app versions
-- Offline mode support
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+**Last Updated**: July 2025
+**Status**: Frontend Complete, Backend Ready for Development 

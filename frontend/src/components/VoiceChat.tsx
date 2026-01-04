@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { DavidAvatar } from './DavidAvatar';
 import { EmojiReactions } from './EmojiReactions';
 import { SmartTips } from './SmartTips';
-import { Mic, MicOff, Volume2, RotateCcw } from 'lucide-react';
+import { Mic, MicOff, Volume2, RotateCcw, Send, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface VoiceChatProps {
@@ -25,6 +26,10 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentTip, setCurrentTip] = useState("Click the microphone and start speaking! I can hear you perfectly!");
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [textInput, setTextInput] = useState('');
+  const [speechRecognitionAvailable, setSpeechRecognitionAvailable] = useState(true);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Initialize messages based on language
   useEffect(() => {
@@ -52,16 +57,43 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
     }]);
     
     setCurrentTip(tips[language as keyof typeof tips] || tips['en']);
+    
+    // Check if speech recognition is available
+    setSpeechRecognitionAvailable('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
   }, [language]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const textInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     // Request microphone permissions on component mount
     requestMicrophonePermission();
+    
+    // Check browser compatibility
+    checkBrowserCompatibility();
   }, []);
+
+  const checkBrowserCompatibility = () => {
+    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    const isEdge = /Edg/.test(navigator.userAgent);
+    const isFirefox = /Firefox/.test(navigator.userAgent);
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    
+    console.log('Browser detected:', { isChrome, isEdge, isFirefox, isSafari });
+    
+    // Show browser-specific tips
+    if (isEdge) {
+      setCurrentTip("Using Edge? Make sure to allow microphone access in site permissions!");
+    } else if (isChrome) {
+      setCurrentTip("Chrome detected! Speech recognition should work perfectly!");
+    } else if (isFirefox) {
+      setCurrentTip("Firefox detected! Speech recognition may have limited support.");
+    } else if (isSafari) {
+      setCurrentTip("Safari detected! Speech recognition support may vary.");
+    }
+  };
 
   const requestMicrophonePermission = async () => {
     try {
@@ -77,38 +109,94 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      // If already recording, stop recording
+      if (isRecording) {
+        stopRecording();
+        return;
+      }
 
+      // Get microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000
+        } 
+      });
+      
+      // Create MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      
+      const audioChunks: Blob[] = [];
+      
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+          audioChunks.push(event.data);
         }
       };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        processAudio(audioBlob);
+      
+      mediaRecorder.onstop = async () => {
+        setIsRecording(false);
+        setCurrentTip("Processing your voice...");
+        
+        // Create audio blob
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        // Send to backend for transcription
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          formData.append('language', language);
+          
+          const response = await fetch('http://localhost:3000/api/voice/transcribe', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Transcription failed: ${response.status}`);
+          }
+          
+          const result = await response.json();
+          
+          if (result.success && result.transcript) {
+            console.log('Real transcript:', result.transcript);
+            processTranscript(result.transcript);
+          } else {
+            throw new Error('No transcript received');
+          }
+          
+        } catch (error) {
+          console.error('Transcription error:', error);
+          toast({
+            title: "Transcription Failed",
+            description: "Could not understand your speech. Please try again.",
+            variant: "destructive"
+          });
+          setCurrentTip("I couldn't understand. Please try speaking again!");
+        }
+        
+        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
-
+      
+      // Store mediaRecorder reference for stopping
+      mediaRecorderRef.current = mediaRecorder;
+      
+      // Start recording
       mediaRecorder.start();
       setIsRecording(true);
-      setCurrentTip("Great! I'm listening carefully. Speak clearly and take your time!");
-
-      // Auto-stop after 30 seconds
-      setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          stopRecording();
-        }
-      }, 30000);
-
+      setCurrentTip("🎤 Recording... Click again to stop!");
+      
     } catch (error) {
+      console.error('Recording setup error:', error);
+      setIsRecording(false);
+      setIsProcessing(false);
       toast({
         title: "Recording Error",
-        description: "Couldn't start recording. Please check your microphone!",
+        description: "Couldn't start recording. Please check your microphone permissions!",
         variant: "destructive"
       });
     }
@@ -118,175 +206,124 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      setIsProcessing(true);
-      setCurrentTip("Processing your voice... This might take a moment! ✨");
+      setCurrentTip("Processing your voice...");
     }
   };
 
-  const processAudio = async (audioBlob: Blob) => {
+  const handleTextSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!textInput.trim()) return;
+    
+    const message = textInput.trim();
+    setTextInput('');
+    await processTranscript(message);
+  };
+
+  const toggleTextInput = () => {
+    setShowTextInput(!showTextInput);
+    if (!showTextInput && textInputRef.current) {
+      textInputRef.current.focus();
+    }
+  };
+
+  const processTranscript = async (transcript: string) => {
     try {
-      setCurrentTip("Processing your voice... This might take a moment! ✨");
+      setIsProcessing(true);
+      setCurrentTip("Processing your message...");
       
-      // Create form data for API request
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.wav');
-      formData.append('language', language);
-      
-      // Add conversation history if available (last 5 messages)
-      if (messages.length > 0) {
-        const history = messages.slice(-5).map(msg => ({
-          type: msg.type,
-          text: msg.text
-        }));
-        formData.append('history', JSON.stringify(history));
+      if (!transcript || transcript.trim() === '') {
+        throw new Error('Could not understand your speech. Please try speaking more clearly.');
       }
       
-      // Send audio to backend API
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/voice/chat`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process audio');
-      }
-      
-      const data = await response.json();
-      
-      // Add user message
+      // Add user message (transcribed from speech)
       const userMsgId = Date.now().toString();
       setMessages(prev => [...prev, {
         id: userMsgId,
         type: 'user',
-        text: data.userMessage,
+        text: transcript,
         timestamp: new Date()
       }]);
 
-      // Create audio element for AI response
-      const audioUrl = `data:audio/mp3;base64,${data.audio}`;
-      const audio = new Audio(audioUrl);
+      // Prepare conversation history for AI
+      const conversationHistory = messages
+        .filter(msg => msg.type === 'user' || msg.type === 'ai')
+        .map(msg => ({
+          type: msg.type,
+          text: msg.text
+        }));
+
+      // Call backend API for AI response only
+      const response = await fetch('http://localhost:3000/api/voice/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userMessage: transcript,
+          language: language,
+          history: conversationHistory
+        })
+      });
       
-      // Add AI message with audio
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to get AI response');
+      }
+      
+      // Add AI response
       const aiMsgId = (Date.now() + 1).toString();
       setMessages(prev => [...prev, {
         id: aiMsgId,
         type: 'ai',
-        text: data.aiMessage,
+        text: result.aiMessage,
         timestamp: new Date(),
-        audioUrl
+        audioUrl: result.audio ? `data:audio/mpeg;base64,${result.audio}` : undefined
       }]);
       
-      // Play audio response
-      audio.play();
-      
-      // Update progress after session
-      if (messages.length >= 4) { // After a few exchanges
-        onSessionComplete();
+      // Play AI response audio if available
+      if (result.audio) {
+        playAIResponse(result.aiMessage);
       }
       
-      setCurrentTip("Great job! Ask another question or try something new!");
-      setIsProcessing(false);
+      setCurrentTip("Great! I heard you clearly. What would you like to learn next?");
+      
     } catch (error) {
-      console.error('Error processing audio:', error);
+      console.error('Voice processing error:', error);
       toast({
-        title: "Processing Error",
-        description: error instanceof Error ? error.message : "Failed to process your voice",
+        title: "Voice Processing Error",
+        description: error instanceof Error ? error.message : "Failed to process your voice. Please try again.",
         variant: "destructive"
       });
-      setIsProcessing(false);
-      // More thoughtful error messages based on language
-      const errorTips = {
-        'en': "Hmm, it seems our magical connection is having a hiccup! Did you know that even wizards sometimes need to restart their wands? Let's try again with a clearer voice! 🧙‍♂️✨",
-        'hi': "लगता है हमारा जादुई कनेक्शन थोड़ा हिचक रहा है! क्या आप जानते हैं कि जादूगरों को भी कभी-कभी अपनी छड़ी को रीस्टार्ट करना पड़ता है? आइए एक स्पष्ट आवाज के साथ फिर से प्रयास करें! 🧙‍♂️✨",
-        'mr': "असं वाटतं की आपला जादुई कनेक्शन थोडा अडखळत आहे! तुम्हाला माहित आहे का की जादूगारांनाही कधीकधी त्यांची जादूची कांडी रीस्टार्ट करावी लागते? चला, अधिक स्पष्ट आवाजात पुन्हा प्रयत्न करू! 🧙‍♂️✨",
-        'gu': "લાગે છે કે આપણું જાદુઈ જોડાણ થોડું અટકી રહ્યું છે! શું તમે જાણો છો કે જાદુગરોને પણ ક્યારેક તેમની જાદુઈ છડી ફરીથી શરૂ કરવી પડે છે? ચાલો વધુ સ્પષ્ટ અવાજ સાથે ફરી પ્રયાસ કરીએ! 🧙‍♂️✨",
-        'ta': "நமது மாயத் தொடர்பு சிறிது தடுமாறுவது போல் தெரிகிறது! மந்திரவாதிகளும் சில நேரங்களில் தங்கள் மந்திரக் கோலை மறுதொடக்கம் செய்ய வேண்டும் என்பது உங்களுக்குத் தெரியுமா? தெளிவான குரலுடன் மீண்டும் முயற்சிப்போம்! 🧙‍♂️✨"
-      };
-      setCurrentTip(errorTips[language as keyof typeof errorTips] || errorTips['en']);
-    }
-  };
-  
-  // Define AI responses for different languages
-  const aiResponses = {
-    'en': [
-      "A noun is a word that names a person, place, or thing! Like 'cat', 'school', or 'friend'. Can you tell me a noun? 😊",
-      "I'd be happy to help with math! What would you like to learn? Addition, subtraction, or something else? 🔢",
-      "Animals are amazing! Did you know dolphins can recognize themselves in mirrors? What's your favorite animal? 🐬",
-      "I can't check the weather, but I can help you learn weather words! Sunshine ☀️, rain 🌧️, clouds ☁️. What weather do you like?",
-      "Making friends is special! Try being kind, sharing, and asking others to play. Friendship is like a beautiful flower that grows! 🌸"
-    ],
-    'hi': [
-      "संज्ञा एक ऐसा शब्द है जो किसी व्यक्ति, स्थान या वस्तु का नाम बताता है! जैसे 'बिल्ली', 'स्कूल', या 'दोस्त'। क्या आप मुझे एक संज्ञा बता सकते हैं? 😊",
-      "मुझे गणित में मदद करने में खुशी होगी! आप क्या सीखना चाहते हैं? जोड़, घटाव, या कुछ और? 🔢",
-      "जानवर अद्भुत हैं! क्या आप जानते हैं कि डॉल्फिन आईने में खुद को पहचान सकते हैं? आपका पसंदीदा जानवर कौन सा है? 🐬",
-      "मैं मौसम की जांच नहीं कर सकता, लेकिन मैं आपको मौसम के शब्द सिखाने में मदद कर सकता हूं! धूप ☀️, बारिश 🌧️, बादल ☁️। आपको कौन सा मौसम पसंद है?",
-      "दोस्त बनाना विशेष है! दयालु बनने, बांटने और दूसरों को खेलने के लिए कहने का प्रयास करें। दोस्ती एक सुंदर फूल की तरह है जो बढ़ती है! 🌸"
-    ],
-    'mr': [
-      "नाम हा एक शब्द आहे जो एखाद्या व्यक्ती, ठिकाण किंवा वस्तूचे नाव सांगतो! जसे 'मांजर', 'शाळा', किंवा 'मित्र'। तुम्ही मला एक नाम सांगू शकता का? 😊",
-      "मला गणितात मदत करण्यात आनंद वाटेल! तुम्हाला काय शिकायचे आहे? बेरीज, वजाबाकी, किंवा काहीतरी? 🔢",
-      "प्राणी खूप आश्चर्यकारक आहेत! तुम्हाला माहित आहे का की डॉल्फिन आरशात स्वतःला ओळखू शकतात? तुमचा आवडता प्राणी कोणता आहे? 🐬",
-      "मी हवामान तपासू शकत नाही, पण मी तुम्हाला हवामान शब्द शिकण्यात मदत करू शकतो! सूर्यप्रकाश ☀️, पाऊस 🌧️, ढग ☁️। तुम्हाला कोणते हवामान आवडते?",
-      "मित्र बनवणे खास आहे! दयाळू असणे, वाटणे आणि इतरांना खेळण्यास सांगण्याचा प्रयत्न करा। मैत्री एक सुंदर फूलासारखी आहे जी वाढते! 🌸"
-    ],
-    'gu': [
-      "સંજ્ઞા એ એવો શબ્દ છે જે કોઈ વ્યક્તિ, સ્થાન અથવા વસ્તુનું નામ બતાવે છે! જેમ કે 'બિલાડી', 'શાળા', અથવા 'મિત્ર'। શું તમે મને એક સંજ્ઞા કહી શકો છો? 😊",
-      "મને ગણિતમાં મદદ કરવામાં આનંદ થશે! તમે શું શીખવા માંગો છો? સરવાળો, બાદબાકી, અથવા કંઈક બીજું? 🔢",
-      "પ્રાણીઓ ખૂબ જ અદ્ભુત છે! શું તમે જાણો છો કે ડોલ્ફિન અરીસામાં પોતાને ઓળખી શકે છે? તમારો પ્રિય પ્રાણી કોણ છે? 🐬",
-      "હું હવામાન તપાસી શકતો નથી, પણ હું તમને હવામાનના શબ્દો શીખવામાં મદદ કરી શકું છું! સૂર્યપ્રકાશ ☀️, વરસાદ 🌧️, વાદળ ☁️। તમને કયું હવામાન ગમે છે?",
-      "મિત્ર બનાવવું ખાસ છે! દયાળુ બનવાનો, વહેંચવાનો અને બીજાને રમવા કહેવાનો પ્રયાસ કરો। મિત્રતા એક સુંદર ફૂલ જેવી છે જે વધે છે! 🌸"
-    ],
-    'ta': [
-      "பெயர்ச்சொல் என்பது ஒரு நபர், இடம் அல்லது பொருளின் பெயரைக் குறிக்கும் சொல்! 'பூனை', 'பள்ளி', அல்லது 'நண்பர்' போன்றவை. நீங்கள் எனக்கு ஒரு பெயர்ச்சொல் சொல்ல முடியுமா? 😊",
-      "நான் கணிதத்தில் உதவ மகிழ்ச்சி அடைவேன்! நீங்கள் என்ன கற்க விரும்புகிறீர்கள்? கூட்டல், கழித்தல், அல்லது வேறு ஏதாவது? 🔢",
-      "விலங்குகள் மிகவும் அற்புதமானவை! டால்பின்கள் கண்ணாடியில் தங்களை அடையாளம் கண்டுகொள்ள முடியும் என்று உங்களுக்குத் தெரியுமா? உங்களுக்கு பிடித்த விலங்கு எது? 🐬",
-      "நான் வானிலையை சரிபார்க்க முடியாது, ஆனால் நான் உங்களுக்கு வானிலை வார்த்தைகளை கற்க உதவ முடியும்! வெயில் ☀️, மழை 🌧️, மேகம் ☁️. உங்களுக்கு எந்த வானிலை பிடிக்கும்?",
-      "நண்பர்களை உருவாக்குவது சிறப்பு! கருணையுடன் இருக்க, பகிர்ந்து கொள்ள, மற்றவர்களை விளையாடும்படி கேட்க முயற்சிக்கவும். நட்பு என்பது வளரும் அழகான மலர் போன்றது! 🌸"
-    ]
-  };
-  
-  const handleFallbackResponse = () => {
-    try {
-      const responses = aiResponses[language as keyof typeof aiResponses] || aiResponses['en'];
-      const aiResponse = responses[Math.floor(Math.random() * responses.length)];
       
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'ai',
-        text: aiResponse,
-        timestamp: new Date()
-      }]);
-        
-      // Multi-language tips
-      const tips = {
-        'en': "Fantastic! Try asking another question or tell me what you think!",
-        'hi': "बहुत बढ़िया! कोई और सवाल पूछने की कोशिश करें या मुझे बताएं कि आप क्या सोचते हैं!",
-        'mr': "खूप छान! दुसरा प्रश्न विचारण्याचा प्रयत्न करा किंवा मला सांगा की तुम्ही काय विचार करता!",
-        'gu': "ખૂબ જ સરસ! બીજો પ્રશ્ન પૂછવાનો પ્રયાસ કરો અથવા મને કહો કે તમે શું વિચારો છો!",
-        'ta': "மிகவும் நன்று! மற்றொரு கேள்வியைக் கேட்க முயற்சிக்கவும் அல்லது நீங்கள் என்ன நினைக்கிறீர்கள் என்று சொல்லுங்கள்!"
-      };
-      
-      setCurrentTip(tips[language as keyof typeof tips] || tips['en']);
-      onSessionComplete();
-    } catch (error) {
-      toast({
-        title: "Processing Error",
-        description: "Our magical connection needs a moment to recharge!",
-        variant: "destructive"
-      });
-      // More thoughtful error messages based on language
-      const errorTips = {
-        'en': "Our magical connection is taking a short nap! Did you know that even the most powerful spells sometimes need a second try? Let's awaken the magic again! 🔮✨",
-        'hi': "हमारा जादुई कनेक्शन थोड़ी देर के लिए आराम कर रहा है! क्या आप जानते हैं कि सबसे शक्तिशाली जादू को भी कभी-कभी दूसरे प्रयास की आवश्यकता होती है? चलिए फिर से जादू को जगाते हैं! 🔮✨",
-        'mr': "आपला जादुई कनेक्शन थोडा आराम करत आहे! तुम्हाला माहित आहे का की सर्वात शक्तिशाली जादूलाही कधीकधी दुसऱ्या प्रयत्नाची गरज असते? चला पुन्हा जादू जागृत करूया! 🔮✨",
-        'gu': "આપણું જાદુઈ જોડાણ થોડી આરામ કરી રહ્યું છે! શું તમે જાણો છો કે સૌથી શક્તિશાળી જાદુને પણ ક્યારેક બીજા પ્રયાસની જરૂર પડે છે? ચાલો ફરીથી જાદુને જગાડીએ! 🔮✨",
-        'ta': "நமது மாய இணைப்பு சிறிது ஓய்வெடுக்கிறது! மிகவும் சக்திவாய்ந்த மந்திரங்களுக்கும் கூட சில நேரங்களில் இரண்டாவது முயற்சி தேவைப்படும் என்பது உங்களுக்குத் தெரியுமா? மீண்டும் மந்திரத்தை விழிக்கச் செய்வோம்! 🔮✨"
-      };
-      setCurrentTip(errorTips[language as keyof typeof errorTips] || errorTips['en']);
+      setCurrentTip("I had trouble understanding. Please try speaking again!");
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const testSpeechRecognition = () => {
+    // Demo mode test
+    toast({
+      title: "Demo Voice Test",
+      description: "Voice recognition is in demo mode. Click the microphone to test!",
+      variant: "default"
+    });
+  };
+
+  const getLanguageCode = (language: string): string => {
+    const languageMap: { [key: string]: string } = {
+      'en': 'en-US',
+      'hi': 'hi-IN',
+      'mr': 'mr-IN',
+      'gu': 'gu-IN',
+      'ta': 'ta-IN'
+    };
+    return languageMap[language] || 'en-US';
   };
 
   const playAIResponse = (text: string) => {
@@ -338,6 +375,19 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
       timestamp: new Date()
     }]);
     setCurrentTip(tips[language as keyof typeof tips] || tips['en']);
+  };
+
+  const stopRetries = () => {
+    setIsRetrying(false);
+    setIsRecording(false);
+    setIsProcessing(false);
+    setShowTextInput(true);
+    setCurrentTip("Switched to text mode. You can still chat with David!");
+    toast({
+      title: "Switched to Text Mode",
+      description: "Voice recognition disabled. Use text input to chat with David!",
+      variant: "default"
+    });
   };
 
   return (
@@ -442,56 +492,135 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
       {/* Voice Controls */}
       <Card className="p-8 bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0">
         <div className="text-center space-y-6">
-          <Button
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isProcessing}
-            className={`w-24 h-24 rounded-full text-white border-4 border-white transition-all duration-300 ${
-              isRecording 
-                ? 'bg-red-500 hover:bg-red-600 animate-pulse-glow' 
-                : 'bg-green-500 hover:bg-green-600 hover:scale-110'
-            }`}
-          >
-            {isRecording ? (
-              <MicOff className="w-12 h-12" />
-            ) : (
-              <Mic className="w-12 h-12" />
+          {/* Mode Toggle Button */}
+          <div className="flex justify-center gap-4 mb-4">
+            <Button
+              onClick={toggleTextInput}
+              variant={showTextInput ? "secondary" : "ghost"}
+              className={`px-4 py-2 rounded-full transition-all duration-300 ${
+                showTextInput 
+                  ? 'bg-white text-blue-600 hover:bg-gray-100' 
+                  : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              <MessageSquare className="w-5 h-5 mr-2" />
+              {language === 'en' ? 'Text Mode' :
+               language === 'hi' ? 'टेक्स्ट मोड' :
+               language === 'mr' ? 'टेक्स्ट मोड' :
+               language === 'gu' ? 'ટેક્સ્ટ મોડ' :
+               'உரை பயன்முறை'}
+            </Button>
+            
+            <Button
+              onClick={testSpeechRecognition}
+              variant="ghost"
+              className="px-4 py-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-all duration-300"
+            >
+              🎤 Test Voice
+            </Button>
+            
+            {isRetrying && (
+              <Button
+                onClick={stopRetries}
+                variant="ghost"
+                className="px-4 py-2 rounded-full bg-red-500/20 text-red-200 hover:bg-red-500/30 transition-all duration-300"
+              >
+                ⏹️ Stop Retries
+              </Button>
             )}
-          </Button>
-          
-          <div className="space-y-2">
-            <p className="text-xl font-bold">
-              {isRecording ? 
-                (language === 'en' ? '🎤 Recording...' :
-                 language === 'hi' ? '🎤 रिकॉर्डिंग...' :
-                 language === 'mr' ? '🎤 रेकॉर्डिंग...' :
-                 language === 'gu' ? '🎤 રેકોર્ડિંગ...' :
-                 '🎤 பதிவு செய்கிறது...') :
-               isProcessing ? 
-                (language === 'en' ? '⚡ Processing...' :
-                 language === 'hi' ? '⚡ प्रोसेसिंग...' :
-                 language === 'mr' ? '⚡ प्रक्रिया...' :
-                 language === 'gu' ? '⚡ પ્રક્રિયા...' :
-                 '⚡ செயலாக்குகிறது...') :
-                (language === 'en' ? '🎙️ Tap to Speak' :
-                 language === 'hi' ? '🎙️ बोलने के लिए टैप करें' :
-                 language === 'mr' ? '🎙️ बोलण्यासाठी टॅप करा' :
-                 language === 'gu' ? '🎙️ બોલવા માટે ટેપ કરો' :
-                 '🎙️ பேச டேப் செய்யவும்')}
-            </p>
-            <p className="text-blue-100">
-              {isRecording ? 
-                (language === 'en' ? 'Speak clearly and tap the button when done!' :
-                 language === 'hi' ? 'स्पष्ट बोलें और जब हो जाए तो बटन टैप करें!' :
-                 language === 'mr' ? 'स्पष्ट बोला आणि झाल्यावर बटण टॅप करा!' :
-                 language === 'gu' ? 'સ્પષ્ટ બોલો અને થઈ જાય ત્યારે બટન ટેપ કરો!' :
-                 'தெளிவாக பேசுங்கள் மற்றும் முடிந்ததும் பொத்தானை டேப் செய்யவும்!') :
-                (language === 'en' ? 'Click the microphone and ask me anything!' :
-                 language === 'hi' ? 'माइक्रोफोन पर क्लिक करें और मुझसे कुछ भी पूछें!' :
-                 language === 'mr' ? 'मायक्रोफोनवर क्लिक करा आणि मला काहीही विचारा!' :
-                 language === 'gu' ? 'માઇક્રોફોન પર ક્લિક કરો અને મને કંઈપણ પૂછો!' :
-                 'மைக்ரோஃபோனில் கிளிக் செய்து என்னிடம் எதையும் கேள்வி கேளுங்கள்!')}
-            </p>
           </div>
+
+          {/* Text Input Mode */}
+          {showTextInput && (
+            <div className="space-y-4">
+              <form onSubmit={handleTextSubmit} className="flex gap-2">
+                <Input
+                  ref={textInputRef}
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder={
+                    language === 'en' ? 'Type your message here...' :
+                    language === 'hi' ? 'यहां अपना संदेश टाइप करें...' :
+                    language === 'mr' ? 'येथे तुमचा संदेश टाइप करा...' :
+                    language === 'gu' ? 'અહીં તમારો સંદેશ ટાઇપ કરો...' :
+                    'இங்கே உங்கள் செய்தியை தட்டச்சு செய்யவும்...'
+                  }
+                  className="flex-1 bg-white/90 text-gray-800 placeholder-gray-500 border-0 rounded-full px-4 py-3"
+                  disabled={isProcessing}
+                />
+                <Button
+                  type="submit"
+                  disabled={!textInput.trim() || isProcessing}
+                  className="bg-white text-blue-600 hover:bg-gray-100 rounded-full px-6 py-3"
+                >
+                  <Send className="w-5 h-5" />
+                </Button>
+              </form>
+              <p className="text-blue-100 text-sm">
+                {language === 'en' ? 'Type your question and press Enter or click Send!' :
+                 language === 'hi' ? 'अपना प्रश्न टाइप करें और Enter दबाएं या Send पर क्लिक करें!' :
+                 language === 'mr' ? 'तुमचा प्रश्न टाइप करा आणि Enter दाबा किंवा Send वर क्लिक करा!' :
+                 language === 'gu' ? 'તમારો પ્રશ્ન ટાઇપ કરો અને Enter દબાવો અથવા Send પર ક્લિક કરો!' :
+                 'உங்கள் கேள்வியை தட்டச்சு செய்து Enter அழுத்தவும் அல்லது Send கிளிக் செய்யவும்!'}
+              </p>
+            </div>
+          )}
+
+          {/* Voice Mode */}
+          {!showTextInput && (
+            <>
+              <Button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing}
+                className={`w-24 h-24 rounded-full text-white border-4 border-white transition-all duration-300 ${
+                  isRecording 
+                    ? 'bg-red-500 hover:bg-red-600 animate-pulse-glow' 
+                    : 'bg-green-500 hover:bg-green-600 hover:scale-110'
+                }`}
+              >
+                {isRecording ? (
+                  <MicOff className="w-12 h-12" />
+                ) : (
+                  <Mic className="w-12 h-12" />
+                )}
+              </Button>
+              
+              <div className="space-y-2">
+                <p className="text-xl font-bold">
+                  {isRecording ? 
+                    (language === 'en' ? '🎤 Recording...' :
+                     language === 'hi' ? '🎤 रिकॉर्डिंग...' :
+                     language === 'mr' ? '🎤 रेकॉर्डिंग...' :
+                     language === 'gu' ? '🎤 રેકોર્ડિંગ...' :
+                     '🎤 பதிவு செய்கிறது...') :
+                   isProcessing ? 
+                    (language === 'en' ? '⚡ Processing...' :
+                     language === 'hi' ? '⚡ प्रोसेसिंग...' :
+                     language === 'mr' ? '⚡ प्रक्रिया...' :
+                     language === 'gu' ? '⚡ પ્રક્રિયા...' :
+                     '⚡ செயலாக்குகிறது...') :
+                    (language === 'en' ? '🎙️ Tap to Speak' :
+                     language === 'hi' ? '🎙️ बोलने के लिए टैप करें' :
+                     language === 'mr' ? '🎙️ बोलण्यासाठी टॅप करा' :
+                     language === 'gu' ? '🎙️ બોલવા માટે ટેપ કરો' :
+                     '🎙️ பேச டேப் செய்யவும்')}
+                </p>
+                <p className="text-blue-100">
+                  {isRecording ? 
+                    (language === 'en' ? 'Speak clearly and tap the button when done!' :
+                     language === 'hi' ? 'स्पष्ट बोलें और जब हो जाए तो बटन टैप करें!' :
+                     language === 'mr' ? 'स्पष्ट बोला आणि झाल्यावर बटण टॅप करा!' :
+                     language === 'gu' ? 'સ્પષ્ટ બોલો અને થઈ જાય ત્યારે બટન ટેપ કરો!' :
+                     'தெளிவாக பேசுங்கள் மற்றும் முடிந்ததும் பொத்தானை டேப் செய்யவும்!') :
+                    (language === 'en' ? 'Click the microphone and ask me anything!' :
+                     language === 'hi' ? 'माइक्रोफोन पर क्लिक करें और मुझसे कुछ भी पूछें!' :
+                     language === 'mr' ? 'मायक्रोफोनवर क्लिक करा आणि मला काहीही विचारा!' :
+                     language === 'gu' ? 'માઇક્રોફોન પર ક્લિક કરો અને મને કંઈપણ પૂછો!' :
+                     'மைக்ரோஃபோனில் கிளிக் செய்து என்னிடம் எதையும் கேள்வி கேளுங்கள்!')}
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </Card>
 
