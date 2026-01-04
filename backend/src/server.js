@@ -1,4 +1,9 @@
 require('dotenv').config();
+const { syncDatabase } = require('./db');
+
+// Initialize Database
+syncDatabase();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -29,9 +34,11 @@ app.get('/api/health', (req, res) => {
 
 const uploadRouter = require('./routes/upload');
 const voiceRouter = require('./routes/voice');
+const authRouter = require('./routes/auth');
 
 app.use('/api/upload', uploadRouter);
 app.use('/api/voice', voiceRouter);
+app.use('/api/auth', authRouter);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

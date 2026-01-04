@@ -1,10 +1,14 @@
 const groqService = require('./groqService');
+const { HfInference } = require('@huggingface/inference');
 
 /**
  * Service for generating AI responses using Groq Cloud API
  * Replaces the local Ollama integration
  */
 class AIService {
+  constructor() {
+    this.hf = new HfInference(process.env.HF_ACCESS_TOKEN);
+  }
 
   /**
    * Generate AI response for free-flow chat
@@ -71,6 +75,26 @@ class AIService {
     } catch (error) {
       console.error('Groq AI roleplay error:', error);
       return this.getFallbackResponse(language, userMessage);
+    }
+  }
+
+  /**
+   * Generate vector embedding for text
+   * @param {string} text 
+   * @returns {Promise<Array<number>>}
+   */
+  async generateEmbedding(text) {
+    try {
+      if (!text) return null;
+      // Use efficient sentence-transformers model
+      const result = await this.hf.featureExtraction({
+        model: 'sentence-transformers/all-MiniLM-L6-v2',
+        inputs: text
+      });
+      return result;
+    } catch (error) {
+      console.error('Embedding generation error:', error.message);
+      return null; // Fail gracefully (continue without memory)
     }
   }
 

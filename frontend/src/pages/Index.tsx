@@ -57,70 +57,92 @@ const Index = () => {
     users[email] = data;
     localStorage.setItem('magic_minds_users', JSON.stringify(users));
   };
-  const checkUserExists = (email: string) => !!getUsers()[email];
-  const verifyUser = (email: string, pass: string) => {
-    const user = getUsers()[email];
-    return user && user.password === pass;
-  };
-
+  // Check for existing token
   useEffect(() => {
-    // Load progress when user changes (or at start if logged in persistence existed)
-    if (isLoggedIn && email) {
-      setUserProgress(getUserData(email));
-      // Also try to get name from storage if not set
-      if (!userName) {
-        const user = getUsers()[email];
-        if (user && user.name) setUserName(user.name);
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await fetch('http://localhost:3000/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const user = await res.json();
+            setIsLoggedIn(true);
+            setUserName(user.name);
+            setEmail(user.email);
+          } else {
+            localStorage.removeItem('token');
+          }
+        } catch (error) {
+          console.error('Auth verification failed', error);
+          localStorage.removeItem('token');
+        }
       }
-    }
-  }, [isLoggedIn, email]);
+    };
+    checkAuth();
+  }, []);
 
   const resetAuth = () => {
     setAuthStep('email');
     setEmail('');
     setPassword('');
     setCountry('');
-    setName('');
+    setUserName('');
     setAuthError('');
     setShowPassword(false);
+    setIsLoading(false);
+  };
+
+  const checkUserExists = async (email: string) => {
+    // In a real flow, we might check availability, but for now we'll just proceed to login or register
+    // This part wraps into the UI logic below
+    return false; // Helper not strictly needed in new flow
   };
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
-    setIsLoading(true);
-    setAuthError('');
-
-    // Simulate API check
-    setTimeout(() => {
-      const exists = checkUserExists(email);
-      setAuthStep(exists ? 'login' : 'register');
-      setIsLoading(false);
-    }, 600);
+    // Simplification: We don't check existence first in this UI flow without an endpoint.
+    // We will assume "Login" first, user can switch to "Register".
+    // Or we can try to Login, if 404/400 then switch?
+    // Let's keep the UI simple: Default to Login step.
+    setAuthStep('login');
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password) return;
 
     setIsLoading(true);
     setAuthError('');
 
-    setTimeout(() => {
-      if (verifyUser(email, password)) {
-        const user = getUsers()[email];
-        completeLogin(user.name || email.split('@')[0], email);
+    try {
+      const res = await fetch('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthError(data.error || 'Login failed');
       } else {
-        setAuthError('Invalid password');
+        localStorage.setItem('token', data.token);
+        completeLogin(data.user.name, data.user.email);
       }
+    } catch (error) {
+      setAuthError('Connection error. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password || !country) {
+    if (!password) {
       setAuthError('Please fill all fields');
       return;
     }
@@ -128,36 +150,39 @@ const Index = () => {
     setIsLoading(true);
     setAuthError('');
 
-    setTimeout(() => {
-      const name = email.split('@')[0]; // Simple name extraction
-      saveUser(email, { password, country, name });
-      completeLogin(name, email);
+    try {
+      const res = await fetch('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name: userName || email.split('@')[0], country })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthError(data.error || 'Registration failed');
+      } else {
+        localStorage.setItem('token', data.token);
+        completeLogin(data.user.name, data.user.email);
+      }
+    } catch (error) {
+      setAuthError('Connection error. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const completeLogin = (name: string, emailStr: string) => {
     setIsLoggedIn(true);
     setUserName(name);
+    setEmail(emailStr);
     setShowAuth(false);
-    resetAuth();
+    // Refresh progress from server would go here
   };
 
   const handleGoogleLogin = () => {
-    // Simulate Google Login
-    setIsLoading(true);
-    setTimeout(() => {
-      // Mocking a specific Google User
-      const googleEmail = "google_user@gmail.com";
-      const googleName = "Google Fan";
-
-      if (!checkUserExists(googleEmail)) {
-        saveUser(googleEmail, { password: 'mock-pass', country: 'us', name: googleName });
-      }
-
-      completeLogin(googleName, googleEmail);
-      setIsLoading(false);
-    }, 1500);
+    // Mock for now, requires OAuth setup
+    setAuthError("Google Login not yet configured on backend.");
   };
 
   const updateProgress = (type: 'chat' | 'roleplay') => {
@@ -317,10 +342,15 @@ const Index = () => {
                   <h2 className="text-2xl font-bold text-gray-800">Account</h2>
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                     <p className="text-sm text-gray-500 mb-1">Signed in as</p>
-                    <p className="font-semibold text-gray-800">{email}</p>
+                    <p className="font-semibold text-gray-800">{userName || email}</p>
                   </div>
                   <Button
-                    onClick={() => { setIsLoggedIn(false); setUserName(''); resetAuth(); }}
+                    onClick={() => {
+                      setIsLoggedIn(false);
+                      setUserName('');
+                      localStorage.removeItem('token');
+                      resetAuth();
+                    }}
                     className="w-full bg-red-50 text-red-600 hover:bg-red-100 border-0"
                   >
                     Sign Out
@@ -378,6 +408,19 @@ const Index = () => {
                         </svg>
                         Continue with Google
                       </Button>
+
+                      <div className="text-center pt-2">
+                        <p className="text-sm text-gray-500">
+                          Don't have an account?{' '}
+                          <button
+                            type="button"
+                            onClick={() => setAuthStep('register')}
+                            className="text-indigo-600 font-semibold hover:underline"
+                          >
+                            Sign up
+                          </button>
+                        </p>
+                      </div>
                     </form>
                   )}
 
@@ -449,18 +492,31 @@ const Index = () => {
                           <ArrowLeft className="w-4 h-4" /> Change email
                         </button>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">Sign up</h2>
-                        <p className="text-gray-500 text-sm">Create an account for {email}</p>
+                        <p className="text-gray-500 text-sm">Create a new account</p>
                       </div>
 
                       <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-email">Email Address <span className="text-red-500">*</span></Label>
+                          <Input
+                            id="reg-email"
+                            type="email"
+                            placeholder="name@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="h-12 border-gray-300"
+                            autoFocus
+                          />
+                        </div>
+
                         <div className="space-y-2">
                           <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
                           <Input
                             id="name"
                             type="text"
                             placeholder="e.g. John Doe"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            value={userName}
+                            onChange={(e) => setUserName(e.target.value)}
                             className="h-12 border-gray-300"
                             autoFocus
                           />

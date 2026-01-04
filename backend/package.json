@@ -15,6 +15,7 @@
   "dependencies": {
     "@huggingface/inference": "^4.6.1",
     "axios": "^1.11.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
@@ -22,7 +23,12 @@
     "form-data": "^4.0.4",
     "groq-sdk": "^0.37.0",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
+    "pgvector": "^0.2.1",
+    "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",
     "ws": "^8.18.3"
   },
