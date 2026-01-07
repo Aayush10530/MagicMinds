@@ -30,7 +30,31 @@ const upload = multer({
  * GET /api/voice/test
  */
 router.get('/test', (req, res) => {
-  res.json({ message: 'Voice API is working!', timestamp: new Date().toISOString() });
+  res.json({ message: 'Voice API is working!', timestamp: new Date().toISOString() }); // Heartbeat check
+});
+
+/**
+ * POST /api/voice/tts
+ * Generate speech from text (for greeting and UI feedbacks)
+ */
+router.post('/tts', async (req, res, next) => {
+  try {
+    const { text, language = 'en' } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: 'No text provided' });
+    }
+
+    const audioBuffer = await textToSpeech.synthesize(text, language);
+
+    res.json({
+      success: true,
+      audio: audioBuffer.toString('base64'),
+      language
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
@@ -52,7 +76,7 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
       where: {
         user_id: userId,
         type: 'chat',
-        created_at: { [Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)) } // Today's session
+        createdAt: { [Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)) } // Today's session
       },
       defaults: {
         user_id: userId,

@@ -13,24 +13,18 @@ class TextToSpeechService {
    */
   async synthesize(text, language = 'en') {
     try {
-      // Map language to voice ID
-      // Defaulting to "BashkarNeural" (Bengali India) as requested by user
-      // with custom rate and pitch
-      let voice = 'en-US-AnaNeural';
+      // Get the appropriate voice for the language
+      const voice = this.getVoiceForLanguage(language);
+
+      // Default settings
       let rate = '0%';
       let pitch = '+0Hz';
 
-      // Override for specific request
-      // We will use BashkarNeural for everything for now as per user request, 
-      // or logic to switch back to Ana for English if they prefer?
-      // User said "I want the same voice to be implemented", showing Bashkar.
-      // Assuming this overrides everything or just Hindi? 
-      // The screenshot has "bn-IN-BashkarNeural" selected.
-      // I will set it as default or high priority.
-
-      voice = 'bn-IN-BashkarNeural';
-      rate = '-9%';
-      pitch = '+11Hz';
+      // Custom settings for specific voices if needed
+      if (voice === 'bn-IN-BashkarNeural') { // David's voice
+        rate = '-9%';
+        pitch = '+11Hz';
+      }
 
       console.log(`Synthesizing speech with Edge TTS using voice: ${voice}, rate: ${rate}, pitch: ${pitch}`);
 
@@ -54,7 +48,7 @@ class TextToSpeechService {
    */
   getVoiceForLanguage(language) {
     const voiceMap = {
-      'en': 'en-US-AnaNeural',      // Child-friendly female
+      'en': 'bn-IN-BashkarNeural',  // User selected "David" (actually Bashkar) for English
       'hi': 'hi-IN-SwaraNeural',    // Excellent Hindi Neural
       'mr': 'mr-IN-AarohiNeural',   // Marathi Neural
       'gu': 'gu-IN-DhwaniNeural',   // Gujarati Neural

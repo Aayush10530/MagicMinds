@@ -31,6 +31,51 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
   const [speechRecognitionAvailable, setSpeechRecognitionAvailable] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playAudio = (base64Audio: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    // Support both MP3 and WebM/Opus from backend
+    const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+    audioRef.current = audio;
+    audio.play().catch(e => console.error("Audio playback failed", e));
+  };
+
+  const playAIResponse = async (text: string, audioData?: string) => {
+    // UI Feedback
+    const langNames = { 'en': 'English', 'hi': 'Hindi', 'mr': 'Marathi', 'gu': 'Gujarati', 'ta': 'Tamil' };
+    const langName = langNames[language as keyof typeof langNames] || 'English';
+    setCurrentTip(`🔊 David is speaking in ${langName}...`);
+
+    if (audioData) {
+      playAudio(audioData);
+    } else {
+      // Fetch from backend
+      try {
+        const token = localStorage.getItem('token');
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch('http://localhost:3000/api/voice/tts', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ text, language })
+        });
+
+        const data = await res.json();
+        if (data.success && data.audio) {
+          playAudio(data.audio);
+        }
+      } catch (err) {
+        console.error("TTS Fetch error", err);
+        // Fallback or silent fail
+      }
+    }
+  };
+
   // Initialize messages based on language
   useEffect(() => {
     const greetings = {
@@ -49,14 +94,22 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
       'ta': "மைக்ரோஃபோனில் கிளிக் செய்து பேசத் தொடங்குங்கள்! நான் உங்களை சரியாகக் கேட்க முடியும்!"
     };
 
+    const greetingText = greetings[language as keyof typeof greetings] || greetings['en'];
+
     setMessages([{
       id: '1',
       type: 'ai',
-      text: greetings[language as keyof typeof greetings] || greetings['en'],
+      text: greetingText,
       timestamp: new Date()
     }]);
 
     setCurrentTip(tips[language as keyof typeof tips] || tips['en']);
+
+    // Autoplay greeting using Backend TTS
+    // We add a small delay to ensure UI is ready and it feels natural
+    setTimeout(() => {
+      playAIResponse(greetingText);
+    }, 500);
 
     // Check if speech recognition is available
     setSpeechRecognitionAvailable('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
@@ -348,8 +401,12 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
         audioUrl: result.audio ? `data:audio/mpeg;base64,${result.audio}` : undefined
       }]);
 
-      // Play AI response audio if available
+      // Play AI response audio if available (or fetch it if not provided in result, but result should have it)
       if (result.audio) {
+        // Direct playback of returned audio
+        playAIResponse(result.aiMessage, result.audio);
+      } else {
+        // Fallback to fetch
         playAIResponse(result.aiMessage);
       }
 
@@ -403,30 +460,8 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
     return languageMap[language] || 'en-US';
   };
 
-  const playAIResponse = (text: string) => {
-    // Enhanced TTS with language support
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.8;
-      utterance.pitch = 1.1;
+  // playAIResponse moved up
 
-      // Try to set language based on selected language
-      const languageMap = {
-        'en': 'en-US',
-        'hi': 'hi-IN',
-        'mr': 'mr-IN',
-        'gu': 'gu-IN',
-        'ta': 'ta-IN'
-      };
-
-      utterance.lang = languageMap[language as keyof typeof languageMap] || 'en-US';
-
-      // Add visual feedback
-      setCurrentTip(`🔊 Speaking in ${language === 'en' ? 'English' : language === 'hi' ? 'Hindi' : language === 'mr' ? 'Marathi' : language === 'gu' ? 'Gujarati' : 'Tamil'}!`);
-
-      window.speechSynthesis.speak(utterance);
-    }
-  };
 
   const clearChat = () => {
     const greetings = {
@@ -542,7 +577,7 @@ export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => playAIResponse(message.text)}
+                    onClick={() => playAIResponse(message.text, message.audioUrl ? message.audioUrl.split(',')[1] : undefined)}
                     className="mt-2 text-xs opacity-70 hover:opacity-100"
                   >
                     <Volume2 className="w-3 h-3 mr-1" />
