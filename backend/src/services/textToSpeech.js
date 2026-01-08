@@ -1,61 +1,60 @@
-const EdgeTTS = require('./EdgeTTSClient');
+const sarvamService = require('./sarvamService');
 
 /**
- * Service for converting text to speech using Microsoft Edge's Free Neural TTS
- * Replaces the paid ElevenLabs integration
+ * Service for converting text to speech using Sarvam AI
  */
 class TextToSpeechService {
   /**
-   * Convert text to speech using Edge TTS
+   * Convert text to speech using Sarvam AI
    * @param {string} text - Text to convert to speech
    * @param {string} language - Language code (for voice selection)
    * @returns {Promise<Buffer>} - Audio buffer
    */
   async synthesize(text, language = 'en') {
     try {
-      // Get the appropriate voice for the language
-      const voice = this.getVoiceForLanguage(language);
+      // Get the appropriate configuration for the language
+      const { code, speaker } = this.getVoiceConfigForLanguage(language);
 
-      // Default settings
-      let rate = '0%';
-      let pitch = '+0Hz';
+      console.log(`Synthesizing speech with Sarvam AI. Language: ${code}, Speaker: ${speaker}`);
 
-      // Custom settings for specific voices if needed
-      if (voice === 'bn-IN-BashkarNeural') { // David's voice
-        rate = '-9%';
-        pitch = '+11Hz';
-      }
-
-      console.log(`Synthesizing speech with Edge TTS using voice: ${voice}, rate: ${rate}, pitch: ${pitch}`);
-
-      const tts = new EdgeTTS();
-      // Use clean text for SSML to avoid XML errors (basic escaping)
-      const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-      const buffer = await tts.synthesize(safeText, voice, rate, pitch);
+      // Call Sarvam Service
+      const buffer = await sarvamService.synthesize(text, code, speaker);
       return buffer;
 
     } catch (error) {
-      console.error('Edge TTS error:', error);
+      console.error('TTS execution error:', error.message);
+      // Return silent buffer or empty to prevent crash, but better to throw or handle upstream
+      // For now returning empty buffer as per previous contract
       return Buffer.from('');
     }
   }
 
   /**
-   * Get appropriate Neural voice ID based on language
+   * Get appropriate Sarvam voice config based on language
    * @param {string} language - Language code
-   * @returns {string} - Edge TTS voice ID
+   * @returns {Object} - { code, speaker }
    */
-  getVoiceForLanguage(language) {
-    const voiceMap = {
-      'en': 'bn-IN-BashkarNeural',  // User selected "David" (actually Bashkar) for English
-      'hi': 'hi-IN-SwaraNeural',    // Excellent Hindi Neural
-      'mr': 'mr-IN-AarohiNeural',   // Marathi Neural
-      'gu': 'gu-IN-DhwaniNeural',   // Gujarati Neural
-      'ta': 'ta-IN-PallaviNeural'   // Tamil Neural
+  getVoiceConfigForLanguage(language) {
+    // Current assumption: 'abhilash' is a versatile male voice for Indian languages.
+    // If specific voices are needed per language, map them here.
+    // Sarvam docs suggest 10+ languages.
+    const defaultSpeaker = 'abhilash'; // Male voice
+
+    const configMap = {
+      'en': { code: 'en-IN', speaker: defaultSpeaker },
+      'hi': { code: 'hi-IN', speaker: defaultSpeaker },
+      'mr': { code: 'mr-IN', speaker: defaultSpeaker },
+      'gu': { code: 'gu-IN', speaker: defaultSpeaker },
+      'ta': { code: 'ta-IN', speaker: defaultSpeaker },
+      'te': { code: 'te-IN', speaker: defaultSpeaker },
+      'kn': { code: 'kn-IN', speaker: defaultSpeaker },
+      'pa': { code: 'pa-IN', speaker: defaultSpeaker },
+      'bn': { code: 'bn-IN', speaker: defaultSpeaker },
+      'ml': { code: 'ml-IN', speaker: defaultSpeaker },
+      'od': { code: 'od-IN', speaker: defaultSpeaker }
     };
 
-    return voiceMap[language] || voiceMap['en'];
+    return configMap[language] || configMap['en'];
   }
 }
 

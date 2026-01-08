@@ -1,11 +1,12 @@
+require('dotenv').config();
 const ttsService = require('./services/textToSpeech');
 const fs = require('fs');
 const path = require('path');
 
 async function testTTS() {
-    console.log('Testing Edge TTS...');
+    console.log('Testing Sarvam AI TTS...');
     try {
-        const text = "Hello! This is a test of the free Microsoft Edge neural voice.";
+        const text = "Hello! This is a test of the Sarvam AI neural voice.";
         const buffer = await ttsService.synthesize(text, 'en');
 
         if (buffer && buffer.length > 0) {

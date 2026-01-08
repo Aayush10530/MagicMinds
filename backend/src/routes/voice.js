@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const config = require('../config/index');
-const aiChat = require('../services/aiService');
+const aiService = require('../services/aiService');
 const textToSpeech = require('../services/textToSpeech');
 const groqService = require('../services/groqService');
 const { authenticateToken } = require('../middleware/auth');
@@ -86,7 +86,7 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
     });
 
     // 2. Generate Embedding for User Message
-    const userEmbedding = await aiChat.generateEmbedding(userMessage);
+    const userEmbedding = await aiService.generateEmbedding(userMessage);
 
     // 3. Save User Message
     await ChatMessage.create({
@@ -139,7 +139,7 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
       text: m.content
     }));
 
-    const aiResponse = await aiChat.generateChatResponse(userMessage, language, history);
+    const aiResponse = await aiService.generateChatResponse(userMessage, language, history);
 
     // 6. Save AI Response
     await ChatMessage.create({

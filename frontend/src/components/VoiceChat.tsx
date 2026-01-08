@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,12 @@ import { EmojiReactions } from './EmojiReactions';
 import { SmartTips } from './SmartTips';
 import { Mic, MicOff, Volume2, RotateCcw, Send, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { createAudioRecorder, AudioRecorder } from '@/lib/audioUtils';
 
 interface VoiceChatProps {
   language: string;
   onSessionComplete: () => void;
+  scenarioContext?: string; // "School", "Store", "Home"
 }
 
 interface ChatMessage {
@@ -21,723 +23,447 @@ interface ChatMessage {
   audioUrl?: string;
 }
 
-export const VoiceChat = ({ language, onSessionComplete }: VoiceChatProps) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+// Strict State Machine
+type ConversationState = 'IDLE' | 'GREETING' | 'LISTENING' | 'PROCESSING' | 'SPEAKING';
+
+export const VoiceChat = ({ language, onSessionComplete, scenarioContext = "Home" }: VoiceChatProps) => {
+  const [currentState, setCurrentState] = useState<ConversationState>('IDLE');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentTip, setCurrentTip] = useState("Click the microphone and start speaking! I can hear you perfectly!");
+  const [currentTip, setCurrentTip] = useState("Initializing...");
   const [showTextInput, setShowTextInput] = useState(false);
   const [textInput, setTextInput] = useState('');
-  const [speechRecognitionAvailable, setSpeechRecognitionAvailable] = useState(true);
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const playAudio = (base64Audio: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    // Support both MP3 and WebM/Opus from backend
-    const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
-    audioRef.current = audio;
-    audio.play().catch(e => console.error("Audio playback failed", e));
-  };
-
-  const playAIResponse = async (text: string, audioData?: string) => {
-    // UI Feedback
-    const langNames = { 'en': 'English', 'hi': 'Hindi', 'mr': 'Marathi', 'gu': 'Gujarati', 'ta': 'Tamil' };
-    const langName = langNames[language as keyof typeof langNames] || 'English';
-    setCurrentTip(`🔊 David is speaking in ${langName}...`);
-
-    if (audioData) {
-      playAudio(audioData);
-    } else {
-      // Fetch from backend
-      try {
-        const token = localStorage.getItem('token');
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch('http://localhost:3000/api/voice/tts', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ text, language })
-        });
-
-        const data = await res.json();
-        if (data.success && data.audio) {
-          playAudio(data.audio);
-        }
-      } catch (err) {
-        console.error("TTS Fetch error", err);
-        // Fallback or silent fail
-      }
-    }
-  };
-
-  // Initialize messages based on language
-  useEffect(() => {
-    const greetings = {
-      'en': "Hello there! I'm David, your magical voice tutor! 👨‍🏫 Ask me anything - what would you like to learn today?",
-      'hi': "नमस्ते! मैं डेविड हूं, आपका जादुई आवाज ट्यूटर! 👨‍🏫 मुझसे कुछ भी पूछें - आप आज क्या सीखना चाहते हैं?",
-      'mr': "नमस्कार! मी डेविड आहे, तुमचा जादुई आवाज शिक्षक! 👨‍🏫 मला काहीही विचारा - तुम्हाला आज काय शिकायचे आहे?",
-      'gu': "નમસ્તે! હું ડેવિડ છું, તમારો જાદુઈ અવાજ શિક્ષક! 👨‍🏫 મને કંઈપણ પૂછો - તમે આજે શું શીખવા માંગો છો?",
-      'ta': "வணக்கம்! நான் டேவிட், உங்கள் மந்திர குரல் ஆசிரியர்! 👨‍🏫 என்னிடம் எதையும் கேள்வி கேளுங்கள் - நீங்கள் இன்று என்ன கற்க விரும்புகிறீர்கள்?"
-    };
-
-    const tips = {
-      'en': "Click the microphone and start speaking! I can hear you perfectly!",
-      'hi': "माइक्रोफोन पर क्लिक करें और बोलना शुरू करें! मैं आपको पूरी तरह से सुन सकता हूं!",
-      'mr': "मायक्रोफोनवर क्लिक करा आणि बोलणे सुरू करा! मी तुम्हाला पूर्णपणे ऐकू शकतो!",
-      'gu': "માઇક્રોફોન પર ક્લિક કરો અને બોલવાનું શરૂ કરો! હું તમને સંપૂર્ણપણે સાંભળી શકું છું!",
-      'ta': "மைக்ரோஃபோனில் கிளிக் செய்து பேசத் தொடங்குங்கள்! நான் உங்களை சரியாகக் கேட்க முடியும்!"
-    };
-
-    const greetingText = greetings[language as keyof typeof greetings] || greetings['en'];
-
-    setMessages([{
-      id: '1',
-      type: 'ai',
-      text: greetingText,
-      timestamp: new Date()
-    }]);
-
-    setCurrentTip(tips[language as keyof typeof tips] || tips['en']);
-
-    // Autoplay greeting using Backend TTS
-    // We add a small delay to ensure UI is ready and it feels natural
-    setTimeout(() => {
-      playAIResponse(greetingText);
-    }, 500);
-
-    // Check if speech recognition is available
-    setSpeechRecognitionAvailable('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
-
-    // Fetch History
-    fetchHistory();
-  }, [language]);
-
-  const fetchHistory = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const res = await fetch('http://localhost:3000/api/voice/history', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.messages && data.messages.length > 0) {
-          setMessages(data.messages);
-        }
-        // If no history, we stick with the default greeting set above
-      }
-    } catch (error) {
-      console.error('Failed to fetch history', error);
-    }
-  };
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<AudioRecorder | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Request microphone permissions on component mount
-    requestMicrophonePermission();
+  // --- Constants & Config ---
 
-    // Check browser compatibility
-    checkBrowserCompatibility();
+  const getLanguageName = (lang: string) => {
+    const names: Record<string, string> = { 'en': 'English', 'hi': 'Hindi', 'mr': 'Marathi', 'gu': 'Gujarati', 'ta': 'Tamil' };
+    return names[lang] || 'English';
+  };
+
+  const getSystemConfig = () => {
+    // This allows backend to know which system prompt to use
+    // Using simple mapping for now, backend will handle the prompt text
+    return {
+      language,
+      role: scenarioContext.toLowerCase() // "school", "store", "home"
+    };
+  };
+
+  // --- Audio Playback Control ---
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
   }, []);
 
-  const checkBrowserCompatibility = () => {
-    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
-    const isEdge = /Edg/.test(navigator.userAgent);
-    const isFirefox = /Firefox/.test(navigator.userAgent);
-    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+  const playAudio = useCallback((base64Audio: string): Promise<void> => {
+    return new Promise((resolve) => {
+      stopAudio();
+      const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+      audioRef.current = audio;
 
-    console.log('Browser detected:', { isChrome, isEdge, isFirefox, isSafari });
+      setCurrentState('SPEAKING');
 
-    // Show browser-specific tips
-    if (isEdge) {
-      setCurrentTip("Using Edge? Make sure to allow microphone access in site permissions!");
-    } else if (isChrome) {
-      setCurrentTip("Chrome detected! Speech recognition should work perfectly!");
-    } else if (isFirefox) {
-      setCurrentTip("Firefox detected! Speech recognition may have limited support.");
-    } else if (isSafari) {
-      setCurrentTip("Safari detected! Speech recognition support may vary.");
+      audio.onended = () => {
+        resolve();
+      };
+
+      audio.onerror = (e) => {
+        console.error("Audio playback error", e);
+        resolve(); // Continue even if audio fails
+      };
+
+      audio.play().catch(e => {
+        console.error("Audio play failed", e);
+        resolve();
+      });
+    });
+  }, [stopAudio]);
+
+  // --- API Interactions ---
+
+  const fetchTTS = async (text: string): Promise<string | null> => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('http://localhost:3000/api/voice/tts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ text, language })
+      });
+
+      const data = await res.json();
+      if (data.success && data.audio) {
+        return data.audio;
+      }
+      return null;
+    } catch (err) {
+      console.error("TTS fetch failed", err);
+      return null;
     }
   };
 
-  const requestMicrophonePermission = async () => {
+  const sendAudioToBackend = async (audioBlob: Blob): Promise<{ text: string }> => {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.wav');
+    formData.append('language', language);
+
+    const token = localStorage.getItem('token');
+    const headers: any = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('http://localhost:3000/api/voice/transcribe', {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+
+    if (!res.ok) throw new Error(`Transcription failed: ${res.status}`);
+    const data = await res.json();
+    if (!data.success || !data.transcript) throw new Error('No transcript received');
+    return { text: data.transcript };
+  };
+
+  const sendChatToBackend = async (userText: string, history: any[]) => {
+    const token = localStorage.getItem('token');
+    const headers: any = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('http://localhost:3000/api/voice/chat', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        userMessage: userText,
+        ...getSystemConfig(),
+        history
+      })
+    });
+
+    if (!res.ok) throw new Error(`Chat API failed: ${res.status}`);
+    return await res.json();
+  };
+
+  // --- Core Logic ---
+
+  const handleAIResponse = async (text: string, audioData?: string) => {
+    // Add AI message to UI
+    const aiMsgId = Date.now().toString();
+    setMessages(prev => [...prev, {
+      id: aiMsgId,
+      type: 'ai',
+      text: text,
+      timestamp: new Date(),
+      audioUrl: audioData ? `data:audio/mp3;base64,${audioData}` : undefined
+    }]);
+
+    // Play Audio
+    let audioToPlay = audioData;
+    if (!audioToPlay) {
+      audioToPlay = await fetchTTS(text) || undefined;
+    }
+
+    if (audioToPlay) {
+      await playAudio(audioToPlay);
+    }
+
+    // After audio finishes, go to IDLE (or LISTENING if auto-turn is enabled, but kept IDLE for safety)
+    // Actually, per requirements: "Only after audio ends, enable the microphone."
+    // We will set to IDLE, and user can tap mic.
+    // OPTIONAL: If we want continuous convo, we could go straight to LISTENING here.
+    // For now, IDLE is safer and strictly follows "enable the microphone" (implies it's available).
+    setCurrentState('IDLE');
+    setCurrentTip("Your turn! Click the mic to speak.");
+  };
+
+  const processUserAudio = async (audioBlob: Blob) => {
+    setCurrentState('PROCESSING');
+    setCurrentTip("Listening to what you said...");
+
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (error) {
+      // 1. STT
+      const { text } = await sendAudioToBackend(audioBlob);
+
+      if (!text || text.trim().length === 0) {
+        throw new Error("I couldn't hear you clearly.");
+      }
+
+      // Add user message
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'user',
+        text: text,
+        timestamp: new Date()
+      }]);
+
+      // 2. Chat with LLM
+      setCurrentTip("Thinking of a response...");
+
+      const history = messages.map(m => ({ type: m.type, text: m.text }));
+      const chatResult = await sendChatToBackend(text, history);
+
+      if (!chatResult.success) throw new Error(chatResult.error || "Brain freeze!");
+
+      // 3. Response & TTS
+      await handleAIResponse(chatResult.aiMessage, chatResult.audio);
+
+    } catch (error: any) {
+      console.error("Processing error", error);
       toast({
-        title: "Microphone Access Needed",
-        description: "Please allow microphone access to use voice chat!",
+        title: "Error",
+        description: error.message || "Something went wrong.",
         variant: "destructive"
       });
+      setCurrentState('IDLE');
+      setCurrentTip("Oops! Something went wrong. Try again.");
     }
   };
 
   const startRecording = async () => {
+    if (currentState !== 'IDLE') return;
+
     try {
-      // If already recording, stop recording
-      if (isRecording) {
-        stopRecording();
-        return;
-      }
-
-      // Get microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 16000
-        }
-      });
-
-      // Create MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-
-      const audioChunks: Blob[] = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        setIsRecording(false);
-        setCurrentTip("Processing your voice...");
-
-        // Create audio blob
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-        // Send to backend for transcription
-        if (!navigator.onLine) {
-          toast({
-            title: "No Internet Connection",
-            description: "You are offline. Switching to Text Mode.",
-            variant: "destructive"
-          });
-          stopRetries(); // This switches to text mode
-          return;
-        }
-
-        // Send to backend for transcription
-        try {
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          formData.append('language', language);
-
-          const headers: any = {};
-          const token = localStorage.getItem('token');
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-
-          const response = await fetch('http://localhost:3000/api/voice/transcribe', {
-            method: 'POST',
-            headers,
-            body: formData
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Transcription failed: ${response.status}`);
-          }
-
-          const result = await response.json();
-
-          if (result.success && result.transcript) {
-            console.log('Real transcript:', result.transcript);
-            processTranscript(result.transcript);
-          } else {
-            throw new Error('No transcript received');
-          }
-
-        } catch (error) {
-          console.error('Transcription error:', error);
-
-          let errorMsg = "Could not understand your speech.";
-          if (!navigator.onLine) {
-            errorMsg = "Check your internet connection.";
-          }
-
-          toast({
-            title: "Transcription Failed",
-            description: `${errorMsg} Try using Text Mode if this persists.`,
-            variant: "destructive",
-            action: (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  stopRetries(); // Switches to text mode
-                }}
-                className="bg-white/20 hover:bg-white/40 border-0 text-white"
-              >
-                Use Text Mode
-              </Button>
-            ) as any // Cast to any to avoid strict type checks on ToastAction in some setups
-          });
-          setCurrentTip("I couldn't understand. Try Text Mode or speak again!");
-        }
-
-        // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      // Store mediaRecorder reference for stopping
-      mediaRecorderRef.current = mediaRecorder;
-
-      // Start recording
-      mediaRecorder.start();
-      setIsRecording(true);
-      setCurrentTip("🎤 Recording... Click again to stop!");
-
+      recorderRef.current = createAudioRecorder();
+      await recorderRef.current.start();
+      setCurrentState('LISTENING');
+      setCurrentTip("I'm listening...");
     } catch (error) {
-      console.error('Recording setup error:', error);
-      setIsRecording(false);
-      setIsProcessing(false);
-      toast({
-        title: "Recording Error",
-        description: "Couldn't start recording. Please check your microphone permissions!",
-        variant: "destructive"
-      });
+      toast({ title: "Mic Error", description: "Could not start recording.", variant: "destructive" });
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setCurrentTip("Processing your voice...");
+  const stopRecording = async () => {
+    if (currentState !== 'LISTENING' || !recorderRef.current) return;
+
+    try {
+      setCurrentState('PROCESSING');
+      const audioBlob = await recorderRef.current.stop();
+
+      // Validation
+      if (audioBlob.size < 1000) { // arbitrary small size check
+        throw new Error("Recording too short. Please speak more.");
+      }
+
+      await processUserAudio(audioBlob);
+
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Recording Error", description: error.message, variant: "destructive" });
+      setCurrentState('IDLE');
     }
   };
 
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!textInput.trim()) return;
+    if (!textInput.trim() || currentState === 'PROCESSING') return;
 
-    const message = textInput.trim();
+    const text = textInput.trim();
     setTextInput('');
-    await processTranscript(message);
-  };
+    setCurrentState('PROCESSING');
 
-  const toggleTextInput = () => {
-    setShowTextInput(!showTextInput);
-    if (!showTextInput && textInputRef.current) {
-      textInputRef.current.focus();
-    }
-  };
-
-  const processTranscript = async (transcript: string) => {
     try {
-      setIsProcessing(true);
-      setCurrentTip("Processing your message...");
-
-      if (!transcript || transcript.trim() === '') {
-        throw new Error('Could not understand your speech. Please try speaking more clearly.');
-      }
-
-      // Add user message (transcribed from speech)
-      const userMsgId = Date.now().toString();
+      // Add user message immediately
       setMessages(prev => [...prev, {
-        id: userMsgId,
+        id: Date.now().toString(),
         type: 'user',
-        text: transcript,
+        text: text,
         timestamp: new Date()
       }]);
 
-      // Prepare conversation history for AI
-      const conversationHistory = messages
-        .filter(msg => msg.type === 'user' || msg.type === 'ai')
-        .map(msg => ({
-          type: msg.type,
-          text: msg.text
-        }));
+      const history = messages.map(m => ({ type: m.type, text: m.text }));
+      const chatResult = await sendChatToBackend(text, history);
 
-      // Call backend API for AI response only
-      const token = localStorage.getItem('token');
-      const headers: any = {
-        'Content-Type': 'application/json'
+      if (!chatResult.success) throw new Error(chatResult.error);
+
+      await handleAIResponse(chatResult.aiMessage, chatResult.audio);
+
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setCurrentState('IDLE');
+    }
+  };
+
+  // --- Initial Greeting ---
+
+  useEffect(() => {
+    const initGreeting = async () => {
+      // Reset state
+      setMessages([]);
+      setCurrentState('GREETING');
+      setCurrentTip(`David is getting ready... (${scenarioContext})`);
+
+      // Default greetings based on language
+      const greetings: Record<string, string> = {
+        'en': "Hello! I'm David. Let's talk!",
+        'hi': "नमस्ते! मैं डेविड हूं। चलिए बात करते हैं!",
+        'mr': "नमस्कार! मी डेविड आहे. चला बोलूया!",
+        'gu': "નમસ્તે! હું ડેવિડ છું. ચાલો વાત કરીએ!",
+        'ta': "வணக்கம்! நான் டேவிட். பேசலாம்!"
       };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('http://localhost:3000/api/voice/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          userMessage: transcript,
-          language: language,
-          history: conversationHistory
-        })
-      });
+      const greetingText = greetings[language] || greetings['en'];
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to get AI response');
-      }
-
-      // Add AI response
-      const aiMsgId = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, {
-        id: aiMsgId,
+      // Add to messages
+      setMessages([{
+        id: 'init',
         type: 'ai',
-        text: result.aiMessage,
-        timestamp: new Date(),
-        audioUrl: result.audio ? `data:audio/mpeg;base64,${result.audio}` : undefined
+        text: greetingText,
+        timestamp: new Date()
       }]);
 
-      // Play AI response audio if available (or fetch it if not provided in result, but result should have it)
-      if (result.audio) {
-        // Direct playback of returned audio
-        playAIResponse(result.aiMessage, result.audio);
+      // Fetch and Play Audio
+      const audio = await fetchTTS(greetingText);
+      if (audio) {
+        await playAudio(audio);
       } else {
-        // Fallback to fetch
-        playAIResponse(result.aiMessage);
+        // Just fail silently to IDLE if TTS fails on init
+        setCurrentState('IDLE');
       }
 
-      setCurrentTip("Great! I heard you clearly. What would you like to learn next?");
+      // Ensure we end up in IDLE after greeting plays (playAudio handles state internally but we ensure here)
+      setCurrentState('IDLE');
+      setCurrentTip("Click the mic to start talking!");
+    };
 
-    } catch (error) {
-      console.error('Voice processing error:', error);
-      toast({
-        title: "Voice Processing Error",
-        description: error instanceof Error ? error.message : "Failed to process your voice. Please try again.",
-        variant: "destructive"
-      });
+    initGreeting();
+    // Cleanup on unmount or lang change
+    return () => {
+      stopAudio();
+    };
+  }, [language, scenarioContext, stopAudio]);
 
-      setCurrentTip("I had trouble understanding. Please try speaking again!");
-    } finally {
-      setIsProcessing(false);
+  // --- Render Helpers ---
+
+  const getStatusColor = () => {
+    switch (currentState) {
+      case 'IDLE': return 'bg-green-500 hover:bg-green-600';
+      case 'LISTENING': return 'bg-red-500 hover:bg-red-600 animate-pulse';
+      case 'PROCESSING': return 'bg-yellow-500 cursor-wait';
+      case 'SPEAKING': return 'bg-blue-500 cursor-wait'; // specific color for speaking
+      case 'GREETING': return 'bg-blue-400 cursor-wait';
+      default: return 'bg-gray-400';
     }
   };
 
-  const testSpeechRecognition = async () => {
-    // Check mic permission and start a short test recording
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      toast({
-        title: "Microphone Working! 🎤",
-        description: "I can hear you! Click the big microphone button to start chatting.",
-        variant: "default"
-      });
-      stream.getTracks().forEach(track => track.stop());
-      // If in text mode, maybe switch to voice mode?
-      if (showTextInput) {
-        setShowTextInput(false);
-      }
-    } catch (err) {
-      toast({
-        title: "Microphone Error",
-        description: "Could not access microphone. Please check your browser settings.",
-        variant: "destructive"
-      });
+  const getStatusIcon = () => {
+    switch (currentState) {
+      case 'IDLE': return <Mic className="w-12 h-12" />;
+      case 'LISTENING': return <MicOff className="w-12 h-12" />;
+      case 'PROCESSING': return <div className="text-xl font-bold">...</div>;
+      case 'SPEAKING': return <Volume2 className="w-12 h-12 animate-bounce" />;
+      case 'GREETING': return <Volume2 className="w-12 h-12 animate-bounce" />;
+      default: return <Mic className="w-12 h-12" />;
     }
   };
 
-  const getLanguageCode = (language: string): string => {
-    const languageMap: { [key: string]: string } = {
-      'en': 'en-US',
-      'hi': 'hi-IN',
-      'mr': 'mr-IN',
-      'gu': 'gu-IN',
-      'ta': 'ta-IN'
-    };
-    return languageMap[language] || 'en-US';
-  };
-
-  // playAIResponse moved up
-
-
-  const clearChat = () => {
-    const greetings = {
-      'en': "Hello there! I'm David, your magical voice tutor! 👨‍🏫 Ask me anything - what would you like to learn today?",
-      'hi': "नमस्ते! मैं डेविड हूं, आपका जादुई आवाज ट्यूटर! 👨‍🏫 मुझसे कुछ भी पूछें - आप आज क्या सीखना चाहते हैं?",
-      'mr': "नमस्कार! मी डेविड आहे, तुमचा जादुई आवाज शिक्षक! 👨‍🏫 मला काहीही विचारा - तुम्हाला आज काय शिकायचे आहे?",
-      'gu': "નમસ્તે! હું ડેવિડ છું, તમારો જાદુઈ અવાજ શિક્ષક! 👨‍🏫 મને કંઈપણ પૂછો - તમે આજે શું શીખવા માંગો છો?",
-      'ta': "வணக்கம்! நான் டேவிட், உங்கள் மந்திர குரல் ஆசிரியர்! 👨‍🏫 என்னிடம் எதையும் கேள்வி கேளுங்கள் - நீங்கள் இன்று என்ன கற்க விரும்புகிறீர்கள்?"
-    };
-
-    const tips = {
-      'en': "Ready for a fresh start! What would you like to learn?",
-      'hi': "एक नई शुरुआत के लिए तैयार! आप क्या सीखना चाहते हैं?",
-      'mr': "नवीन सुरुवातीसाठी तयार! तुम्हाला काय शिकायचे आहे?",
-      'gu': "નવી શરૂઆત માટે તૈયાર! તમે શું શીખવા માંગો છો?",
-      'ta': "புதிய தொடக்கத்திற்கு தயாராக! நீங்கள் என்ன கற்க விரும்புகிறீர்கள்?"
-    };
-
-    setMessages([{
-      id: '1',
-      type: 'ai',
-      text: greetings[language as keyof typeof greetings] || greetings['en'],
-      timestamp: new Date()
-    }]);
-    setCurrentTip(tips[language as keyof typeof tips] || tips['en']);
-  };
-
-  const stopRetries = () => {
-    setIsRetrying(false);
-    setIsRecording(false);
-    setIsProcessing(false);
-    setShowTextInput(true);
-    setCurrentTip("Switched to text mode. You can still chat with David!");
-    toast({
-      title: "Switched to Text Mode",
-      description: "Voice recognition disabled. Use text input to chat with David!",
-      variant: "default"
-    });
-  };
+  const canInteract = currentState === 'IDLE' || currentState === 'LISTENING';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Chat Header */}
+      {/* Header */}
       <Card className="p-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <DavidAvatar
               size="medium"
-              isActive={true}
-              mood={isRecording ? 'listening' : isProcessing ? 'thinking' : 'happy'}
+              isActive={currentState === 'SPEAKING' || currentState === 'GREETING'}
+              mood={currentState === 'LISTENING' ? 'listening' : currentState === 'PROCESSING' ? 'thinking' : 'happy'}
             />
             <div>
               <h3 className="text-2xl font-bold">
-                {language === 'en' ? 'Chat with David!' :
-                  language === 'hi' ? 'डेविड के साथ चैट करें!' :
-                    language === 'mr' ? 'डेविडसोबत चॅट करा!' :
-                      language === 'gu' ? 'ડેવિડ સાથે ચેટ કરો!' :
-                        'டேவிட் உடன் அரட்டையடிக்கவும்!'}
+                {getLanguageName(language)} Chat ({scenarioContext})
               </h3>
               <p className="text-purple-100">
-                {isRecording ?
-                  (language === 'en' ? "I'm listening..." :
-                    language === 'hi' ? "मैं सुन रहा हूं..." :
-                      language === 'mr' ? "मी ऐकत आहे..." :
-                        language === 'gu' ? "હું સાંભળી રહ્યો છું..." :
-                          "நான் கேட்கிறேன்...") :
-                  isProcessing ?
-                    (language === 'en' ? "Thinking..." :
-                      language === 'hi' ? "सोच रहा हूं..." :
-                        language === 'mr' ? "विचार करत आहे..." :
-                          language === 'gu' ? "વિચારી રહ્યો છું..." :
-                            "சிந்திக்கிறேன்...") :
-                    (language === 'en' ? "Ready to chat!" :
-                      language === 'hi' ? "चैट के लिए तैयार!" :
-                        language === 'mr' ? "चॅटसाठी तयार!" :
-                          language === 'gu' ? "ચેટ માટે તૈયાર!" :
-                            "அரட்டைக்கு தயாராக!")}
+                Current Status: {currentState}
               </p>
             </div>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={clearChat}
+            onClick={onSessionComplete}
             className="bg-white/20 border-white/30 text-white hover:bg-white/30"
           >
             <RotateCcw className="w-4 h-4 mr-2" />
-            {language === 'en' ? 'New Chat' :
-              language === 'hi' ? 'नई चैट' :
-                language === 'mr' ? 'नवीन चॅट' :
-                  language === 'gu' ? 'નવી ચેટ' :
-                    'புதிய அரட்டை'}
+            End Session
           </Button>
         </div>
       </Card>
 
-      {/* Chat Messages */}
+      {/* Messages */}
       <Card className="p-6 bg-white/90 backdrop-blur border-purple-200 min-h-[400px]">
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          {messages.map((message) => (
+        <div className="space-y-4 max-h-96 overflow-y-auto flex flex-col-reverse">
+          {[...messages].reverse().map((message) => (
             <div
               key={message.id}
               className={`flex gap-4 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {message.type === 'ai' && (
-                <DavidAvatar size="small" isActive={true} />
+                <DavidAvatar size="small" isActive={false} />
               )}
-
-              <div className={`chat-bubble ${message.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'
-                }`}>
+              <div className={`chat-bubble ${message.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`}>
                 <p className="text-lg leading-relaxed">{message.text}</p>
-                {message.type === 'ai' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => playAIResponse(message.text, message.audioUrl ? message.audioUrl.split(',')[1] : undefined)}
-                    className="mt-2 text-xs opacity-70 hover:opacity-100"
-                  >
-                    <Volume2 className="w-3 h-3 mr-1" />
-                    {language === 'en' ? 'Play Voice' :
-                      language === 'hi' ? 'आवाज सुनें' :
-                        language === 'mr' ? 'आवाज ऐका' :
-                          language === 'gu' ? 'આવાજ સાંભળો' :
-                            'குரலை இயக்கவும்'}
-                  </Button>
-                )}
               </div>
-
               {message.type === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-green-400 flex items-center justify-center text-white font-bold">
-                  👤
-                </div>
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white">👤</div>
               )}
             </div>
           ))}
         </div>
       </Card>
 
-      {/* Voice Controls */}
+      {/* Controls */}
       <Card className="p-8 bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0">
         <div className="text-center space-y-6">
-          {/* Mode Toggle Button */}
           <div className="flex justify-center gap-4 mb-4">
             <Button
-              onClick={toggleTextInput}
-              variant={showTextInput ? "secondary" : "ghost"}
-              className={`px-4 py-2 rounded-full transition-all duration-300 ${showTextInput
-                ? 'bg-white text-blue-600 hover:bg-gray-100'
-                : 'bg-white/20 text-white hover:bg-white/30'
-                }`}
-            >
-              <MessageSquare className="w-5 h-5 mr-2" />
-              {language === 'en' ? 'Text Mode' :
-                language === 'hi' ? 'टेक्स्ट मोड' :
-                  language === 'mr' ? 'टेक्स्ट मोड' :
-                    language === 'gu' ? 'ટેક્સ્ટ મોડ' :
-                      'உரை பயன்முறை'}
-            </Button>
-
-            <Button
-              onClick={testSpeechRecognition}
+              onClick={() => setShowTextInput(!showTextInput)}
               variant="ghost"
-              className="px-4 py-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-all duration-300"
+              className="bg-white/20 text-white hover:bg-white/30 rounded-full"
             >
-              🎤 Test Voice
+              <MessageSquare className="w-4 h-4 mr-2" /> {showTextInput ? "Voice Mode" : "Text Mode"}
             </Button>
-
-            {isRetrying && (
-              <Button
-                onClick={stopRetries}
-                variant="ghost"
-                className="px-4 py-2 rounded-full bg-red-500/20 text-red-200 hover:bg-red-500/30 transition-all duration-300"
-              >
-                ⏹️ Stop Retries
-              </Button>
-            )}
           </div>
 
-          {/* Text Input Mode */}
-          {showTextInput && (
-            <div className="space-y-4">
-              <form onSubmit={handleTextSubmit} className="flex gap-2">
-                <Input
-                  ref={textInputRef}
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder={
-                    language === 'en' ? 'Type your message here...' :
-                      language === 'hi' ? 'यहां अपना संदेश टाइप करें...' :
-                        language === 'mr' ? 'येथे तुमचा संदेश टाइप करा...' :
-                          language === 'gu' ? 'અહીં તમારો સંદેશ ટાઇપ કરો...' :
-                            'இங்கே உங்கள் செய்தியை தட்டச்சு செய்யவும்...'
-                  }
-                  className="flex-1 bg-white/90 text-gray-800 placeholder-gray-500 border-0 rounded-full px-4 py-3"
-                  disabled={isProcessing}
-                />
-                <Button
-                  type="submit"
-                  disabled={!textInput.trim() || isProcessing}
-                  className="bg-white text-blue-600 hover:bg-gray-100 rounded-full px-6 py-3"
-                >
-                  <Send className="w-5 h-5" />
-                </Button>
-              </form>
-              <p className="text-blue-100 text-sm">
-                {language === 'en' ? 'Type your question and press Enter or click Send!' :
-                  language === 'hi' ? 'अपना प्रश्न टाइप करें और Enter दबाएं या Send पर क्लिक करें!' :
-                    language === 'mr' ? 'तुमचा प्रश्न टाइप करा आणि Enter दाबा किंवा Send वर क्लिक करा!' :
-                      language === 'gu' ? 'તમારો પ્રશ્ન ટાઇપ કરો અને Enter દબાવો અથવા Send પર ક્લિક કરો!' :
-                        'உங்கள் கேள்வியை தட்டச்சு செய்து Enter அழுத்தவும் அல்லது Send கிளிக் செய்யவும்!'}
-              </p>
-            </div>
-          )}
-
-          {/* Voice Mode */}
-          {!showTextInput && (
-            <>
-              <Button
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={isProcessing}
-                className={`w-24 h-24 rounded-full text-white border-4 border-white transition-all duration-300 ${isRecording
-                  ? 'bg-red-500 hover:bg-red-600 animate-pulse-glow'
-                  : 'bg-green-500 hover:bg-green-600 hover:scale-110'
-                  }`}
-              >
-                {isRecording ? (
-                  <MicOff className="w-12 h-12" />
-                ) : (
-                  <Mic className="w-12 h-12" />
-                )}
+          {showTextInput ? (
+            <form onSubmit={handleTextSubmit} className="flex gap-2">
+              <Input
+                ref={textInputRef}
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Type here..."
+                className="bg-white/90 text-black rounded-full"
+                disabled={currentState === 'PROCESSING'}
+              />
+              <Button type="submit" className="rounded-full bg-white text-blue-600">
+                <Send className="w-4 h-4" />
               </Button>
-
-              <div className="space-y-2">
-                <p className="text-xl font-bold">
-                  {isRecording ?
-                    (language === 'en' ? '🎤 Recording...' :
-                      language === 'hi' ? '🎤 रिकॉर्डिंग...' :
-                        language === 'mr' ? '🎤 रेकॉर्डिंग...' :
-                          language === 'gu' ? '🎤 રેકોર્ડિંગ...' :
-                            '🎤 பதிவு செய்கிறது...') :
-                    isProcessing ?
-                      (language === 'en' ? '⚡ Processing...' :
-                        language === 'hi' ? '⚡ प्रोसेसिंग...' :
-                          language === 'mr' ? '⚡ प्रक्रिया...' :
-                            language === 'gu' ? '⚡ પ્રક્રિયા...' :
-                              '⚡ செயலாக்குகிறது...') :
-                      (language === 'en' ? '🎙️ Tap to Speak' :
-                        language === 'hi' ? '🎙️ बोलने के लिए टैप करें' :
-                          language === 'mr' ? '🎙️ बोलण्यासाठी टॅप करा' :
-                            language === 'gu' ? '🎙️ બોલવા માટે ટેપ કરો' :
-                              '🎙️ பேச டேப் செய்யவும்')}
-                </p>
-                <p className="text-blue-100">
-                  {isRecording ?
-                    (language === 'en' ? 'Speak clearly and tap the button when done!' :
-                      language === 'hi' ? 'स्पष्ट बोलें और जब हो जाए तो बटन टैप करें!' :
-                        language === 'mr' ? 'स्पष्ट बोला आणि झाल्यावर बटण टॅप करा!' :
-                          language === 'gu' ? 'સ્પષ્ટ બોલો અને થઈ જાય ત્યારે બટન ટેપ કરો!' :
-                            'தெளிவாக பேசுங்கள் மற்றும் முடிந்ததும் பொத்தானை டேப் செய்யவும்!') :
-                    (language === 'en' ? 'Click the microphone and ask me anything!' :
-                      language === 'hi' ? 'माइक्रोफोन पर क्लिक करें और मुझसे कुछ भी पूछें!' :
-                        language === 'mr' ? 'मायक्रोफोनवर क्लिक करा आणि मला काहीही विचारा!' :
-                          language === 'gu' ? 'માઇક્રોફોન પર ક્લિક કરો અને મને કંઈપણ પૂછો!' :
-                            'மைக்ரோஃபோனில் கிளிக் செய்து என்னிடம் எதையும் கேள்வி கேளுங்கள்!')}
-                </p>
-              </div>
-            </>
+            </form>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <Button
+                onClick={currentState === 'LISTENING' ? stopRecording : startRecording}
+                disabled={!canInteract}
+                className={`w-24 h-24 rounded-full border-4 border-white transition-all ${getStatusColor()}`}
+              >
+                {getStatusIcon()}
+              </Button>
+              <p className="text-xl font-bold">{currentTip}</p>
+            </div>
           )}
         </div>
       </Card>
 
-      {/* Smart Tips */}
       <SmartTips tip={currentTip} />
-
-      {/* Emoji Reactions */}
-      <EmojiReactions onReaction={(emoji) => setCurrentTip(`Thanks for the ${emoji}! How else can I help?`)} />
     </div>
   );
 };
