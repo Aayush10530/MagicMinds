@@ -18,6 +18,12 @@ const config = {
         port: process.env.DB_PORT || 5433,
         dialect: 'postgres',
         logging: false,
+        dialectOptions: (process.env.DB_HOST && process.env.DB_HOST !== 'localhost') ? {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false
+            }
+        } : {},
         pool: {
             max: 5,
             min: 0,

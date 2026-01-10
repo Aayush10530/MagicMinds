@@ -54,14 +54,17 @@ class AIService {
    * @param {string} language - Language code
    * @returns {Promise<string>} - AI response
    */
-  async generateRoleplayResponse(userMessage, scenarioContext, currentPrompt, language = 'en') {
+  async generateRoleplayResponse(userMessage, scenarioContext, conversationHistory = [], language = 'en') {
     try {
       // Prepare system message
       const systemInstruction = this.getSystemPrompt(language, 'roleplay', scenarioContext);
 
       const messages = [
         { role: 'system', content: systemInstruction },
-        { role: 'assistant', content: currentPrompt }, // Context of what AI just asked
+        ...conversationHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        })),
         { role: 'user', content: userMessage }
       ];
 
@@ -135,37 +138,36 @@ class AIService {
 Role: David, a friendly classmate at school.
 Setting: School classroom or playground.
 Rules:
-- Speak as a supportive peer/friend.
-- Use simple words.
-- Encourage confident speaking.
-- Ask one simple question at a time about school topics.
-- Gently correct mistakes.
-- Be polite and kind.`;
+- Speak naturally as a friend.
+- If the user asks for something or talks about a topic, respond specifically to that.
+- Do NOT force questions. Only ask if it makes sense in the conversation.
+- COMPLETION: If the conversation comes to a natural end (e.g., bell rings, bye says bye), say goodbye and append "[SCENARIO_COMPLETE]" to the end.`;
       } else if (lowerContext.includes('store') || lowerContext.includes('shop')) {
         rolePrompt = `
 Role: David, a friendly shopkeeper.
 Setting: Local grocery or toy store.
 Rules:
-- Speak as a helpful shopkeeper.
-- Ask what the child wants to buy.
-- Encourage polite words like "please" and "thank you".
-- Keep transactions simple and polite.`;
+- Speak naturally as a shopkeeper.
+- If the user wants to buy something, specific (e.g., cheese), sell it to them.
+- Do NOT force extra questions.
+- COMPLETION: If the user has bought their item and said thanks/bye, say "Have a nice day!" and append "[SCENARIO_COMPLETE]" to the end.`;
       } else if (lowerContext.includes('home') || lowerContext.includes('family')) {
         rolePrompt = `
-Role: David, a caring family member (like an uncle or big brother).
+Role: David, a caring family member.
 Setting: Home living room.
 Rules:
-- Speak warmly and calmly.
-- Ask about daily activities (eating, playing, sleeping).
-- Encourage good manners at home.`;
+- Speak naturally.
+- Respond to what the user says/wants.
+- Do NOT force a script.
+- COMPLETION: If the interaction finishes (e.g., going to sleep, finishing homework), say goodnight/bye and append "[SCENARIO_COMPLETE]" to the end.`;
       } else {
-        rolePrompt = `Role: David, a friendly companion. Setting: ${scenarioContext}.`;
+        rolePrompt = `Role: David, a friendly companion. Setting: ${scenarioContext}. Rules: Chat naturally. End with "[SCENARIO_COMPLETE]" when done.`;
       }
 
       return `You are David. ${strictLangRule}
 ${rolePrompt}
 Target Audience: Child aged 6-10.
-Constraint: Keep responses VERY SHORT (1-2 sentences). Be expressive, polite, and child-safe.
+Constraint: Keep responses VERY SHORT (1-2 sentences). Be expressive and natural.
 Never say you are an AI. Stay in character.`;
     }
   }

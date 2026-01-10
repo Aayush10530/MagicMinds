@@ -28,51 +28,115 @@ interface RoleplayScenariosProps {
   onScenarioComplete: () => void;
 }
 
-const scenarios: RoleplayScenario[] = [
-  {
-    id: 'school',
-    title: 'At School',
-    icon: <School className="w-8 h-8" />,
-    description: 'Practice conversations with teachers and classmates!',
-    background: 'from-blue-400 to-blue-600',
-    steps: [
-      { id: '1', aiPrompt: "Good morning! Welcome to our classroom! What's your name?", tips: "Say your name clearly!" },
-      { id: '2', aiPrompt: "Nice to meet you! Do you like coming to school?", tips: "You can say 'Yes, I like school!'" },
-      { id: '3', aiPrompt: "That's wonderful! What's your favorite subject?", tips: "Think about subjects like Math or Art!" }
-    ]
-  },
-  {
-    id: 'store',
-    title: 'At the Store',
-    icon: <ShoppingCart className="w-8 h-8" />,
-    description: 'Learn to shop and talk to shopkeepers!',
-    background: 'from-green-400 to-green-600',
-    steps: [
-      { id: '1', aiPrompt: "Welcome to our store! How can I help you today?", tips: "Say 'I want to buy...'!" },
-      { id: '2', aiPrompt: "That's a great choice! How many would you like?", tips: "Use numbers like 'one' or 'two'!" },
-      { id: '3', aiPrompt: "Perfect! Here's your order. Have a great day!", tips: "Say 'Thank you'!" }
-    ]
-  },
-  {
-    id: 'home',
-    title: 'At Home',
-    icon: <Home className="w-8 h-8" />,
-    description: 'Practice family conversations!',
-    background: 'from-orange-400 to-orange-600',
-    steps: [
-      { id: '1', aiPrompt: "Hi there! Who do you live with at home?", tips: "Mention your family members!" },
-      { id: '2', aiPrompt: "That sounds lovely! Do you help at home?", tips: "Talk about chores!" },
-      { id: '3', aiPrompt: "You're a good helper! What's your favorite game?", tips: "Share what you like to play!" }
-    ]
-  }
-];
+const getScenarios = (lang: string): RoleplayScenario[] => {
+  const isHindi = lang === 'hi';
+  const isMarathi = lang === 'mr';
+  const isGujarati = lang === 'gu';
+  const isTamil = lang === 'ta';
+
+  return [
+    {
+      id: 'school',
+      title: isHindi ? 'स्कूल में' : isMarathi ? 'शाळेत' : isGujarati ? 'શાળામાં' : isTamil ? 'பள்ளியில்' : 'At School',
+      icon: <School className="w-8 h-8" />,
+      description: isHindi ? 'शिक्षकों और सहपाठियों के साथ बातचीत का अभ्यास करें!' : 'Practice conversations with teachers and classmates!',
+      background: 'from-blue-400 to-blue-600',
+      steps: [
+        {
+          id: '1',
+          aiPrompt: isHindi ? "सुप्रभात! हमारी कक्षा में आपका स्वागत है! आपका नाम क्या है?" :
+            isMarathi ? "सुप्रभात! आमच्या वर्गात तुमचे स्वागत आहे! तुमचे नाव काय आहे?" :
+              isGujarati ? "સુપ્રભાત! અમારા વર્ગખંડમાં તમારું સ્વાગત છે! તમારું નામ શું છે?" :
+                isTamil ? "காலை வணக்கம்! வகுப்பறைக்கு வருக! உங்கள் பெயர் என்ன?" :
+                  "Good morning! Welcome to our classroom! What's your name?",
+          tips: isHindi ? "अपना नाम स्पष्ट रूप से कहें!" : "Say your name clearly!"
+        },
+        {
+          id: '2',
+          aiPrompt: isHindi ? "आपसे मिलकर अच्छा लगा! क्या आपको स्कूल आना पसंद है?" :
+            isMarathi ? "तुम्हाला भेटून आनंद झाला! तुम्हाला शाळेत यायला आवडते का?" :
+              isGujarati ? "તમને મળીને આનંદ થયો! શું તમને શાળાએ આવવું ગમે છે?" :
+                isTamil ? "உங்களை சந்தித்ததில் மகிழ்ச்சி! உங்களுக்கு பள்ளிக்கு வருவது பிடிக்குமா?" :
+                  "Nice to meet you! Do you like coming to school?",
+          tips: isHindi ? "आप कह सकते हैं 'हाँ, मुझे स्कूल पसंद है!'" : "You can say 'Yes, I like school!'"
+        },
+        {
+          id: '3',
+          aiPrompt: isHindi ? "यह अद्भुत है! आपका पसंदीदा विषय कौन सा है?" :
+            isMarathi ? "ते खूप छान आहे! तुमचा आवडता विषय कोणता आहे?" :
+              isGujarati ? "તે અદ્ભુત છે! તમારો મનપસંદ વિષય કયો છે?" :
+                isTamil ? "அது அற்புதம்! உங்களுக்கு மிகவும் பிடித்த பாடம் எது?" :
+                  "That's wonderful! What's your favorite subject?",
+          tips: isHindi ? "गणित या कला जैसे विषयों के बारे में सोचें!" : "Think about subjects like Math or Art!"
+        }
+      ]
+    },
+    {
+      id: 'store',
+      title: isHindi ? 'दुकान पर' : isMarathi ? 'दुकानात' : isGujarati ? 'દુકાને' : isTamil ? 'கடைக்கு' : 'At the Store',
+      icon: <ShoppingCart className="w-8 h-8" />,
+      description: 'Learn to shop and talk to shopkeepers!',
+      background: 'from-green-400 to-green-600',
+      steps: [
+        {
+          id: '1',
+          aiPrompt: isHindi ? "हमारी दुकान में आपका स्वागत है! आज मैं आपकी कैसे मदद कर सकता हूँ?" :
+            isMarathi ? "आमच्या दुकानात तुमचे स्वागत आहे! आज मी तुमची कशी मदत करू शकतो?" :
+              isGujarati ? "અમારી દુકાનમાં તમારું સ્વાગત છે! હું તમને કેવી રીતે મદદ કરી શકું?" :
+                isTamil ? "எங்கள் கடைக்கு வருக! இன்று நான் உங்களுக்கு எப்படி உதவ முடியும்?" :
+                  "Welcome to our store! How can I help you today?",
+          tips: "Say 'I want to buy...'!"
+        },
+        {
+          id: '2',
+          aiPrompt: isHindi ? "यह बहुत अच्छा विकल्प है! आपको कितने चाहिए?" :
+            isMarathi ? "ती खूप छान निवड आहे! तुम्हाला किती हवे आहेत?" :
+              isGujarati ? "તે ખૂબ જ સારી પસંદગી છે! તમને કેટલા જોઈએ છે?" :
+                isTamil ? "அது சிறந்த தேர்வு! உங்களுக்கு எத்தனை வேண்டும்?" :
+                  "That's a great choice! How many would you like?",
+          tips: "Use numbers like 'one' or 'two'!"
+        },
+        {
+          id: '3',
+          aiPrompt: isHindi ? "बढ़िया! यह रहा आपका ऑर्डर। आपका दिन शुभ हो!" :
+            isMarathi ? "उत्तम! हे घ्या तुमचे ऑर्डर. आपला दिवस चांगला जावो!" :
+              isGujarati ? "સરસ! આ રહ્યો તમારો ઓર્ડર. તમારો દિવસ શુભ રહે!" :
+                isTamil ? "அருமை! இதோ உங்கள் ஆர்டர். இனிய நாளாக அமையட்டும்!" :
+                  "Perfect! Here's your order. Have a great day!",
+        }
+      ]
+    },
+    {
+      id: 'home',
+      title: isHindi ? 'घर पर' : isMarathi ? 'घरी' : isGujarati ? 'ઘરે' : isTamil ? 'வீட்டில்' : 'At Home',
+      icon: <Home className="w-8 h-8" />,
+      description: 'Practice family conversations!',
+      background: 'from-orange-400 to-orange-600',
+      steps: [
+        {
+          id: '1',
+          aiPrompt: isHindi ? "नमस्ते! आप घर पर किसके साथ रहते हैं?" :
+            isMarathi ? "नमस्कार! तुम्ही घरी कोणासोबत राहता?" :
+              isGujarati ? "નમસ્તે! તમે ઘરે કોની સાથે રહો છો?" :
+                isTamil ? "வணக்கம்! நீங்கள் வீட்டில் யாருடன் வசிக்கிறீர்கள்?" :
+                  "Hi there! Who do you live with at home?",
+          tips: "Mention your family members!"
+        }
+      ]
+    }
+  ];
+};
 
 export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScenariosProps) => {
   const [selectedScenario, setSelectedScenario] = useState<RoleplayScenario | null>(null);
-  const [currentStep, setCurrentStep] = useState(0);
+
+  // Dynamic Conversation State
+  const [turnCount, setTurnCount] = useState(0);
+  const [currentAiPrompt, setCurrentAiPrompt] = useState('');
+  const [currentTips, setCurrentTips] = useState('');
+
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [userResponses, setUserResponses] = useState<string[]>([]);
   const { toast } = useToast();
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [textInput, setTextInput] = useState('');
@@ -80,10 +144,9 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   // Refs for cleanup
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null); // Track recorder to stop it
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  // --- SAFE GUARDS ---
-  const currentStepData = selectedScenario?.steps?.[currentStep];
+  // const MAX_TURNS = 10; // Removed per user guidelines
 
   // --- CLEANUP ---
   const stopAudio = useCallback(() => {
@@ -94,14 +157,11 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   }, []);
 
   const stopEverything = useCallback(() => {
-    // 1. Abort fetch
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // 2. Stop Audio
     stopAudio();
-    // 3. Stop Mic
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -109,21 +169,20 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
     setIsProcessing(false);
   }, [stopAudio]);
 
-  // Cleanup on unmount or scenario change
+  // Cleanup
   useEffect(() => {
     return () => stopEverything();
   }, [stopEverything, selectedScenario]);
 
   // --- TTS ---
   const playAudio = useCallback((base64Audio: string) => {
-    stopAudio(); // Stop previous
+    stopAudio();
     const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
     audioRef.current = audio;
     audio.play().catch(e => console.error("Audio play failed", e));
   }, [stopAudio]);
 
   const fetchAndPlayTTS = async (text: string) => {
-    // Abort previous TTS fetch if any? No, let's just facilitate user action.
     try {
       const token = localStorage.getItem('token');
       const headers: any = { 'Content-Type': 'application/json' };
@@ -132,7 +191,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
       const res = await fetch('http://localhost:3000/api/voice/tts', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text, language }) // ALWAYS pass language
+        body: JSON.stringify({ text, language })
       });
       const data = await res.json();
       if (data.success && data.audio) {
@@ -144,8 +203,6 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   };
 
   // --- SESSION INIT ---
-  // Start session ONLY when scenario is selected. 
-  // STRICT RULE: No auto-start on mount. But here "selection" IS the explicit user action.
   useEffect(() => {
     if (selectedScenario) {
       const initSession = async () => {
@@ -165,10 +222,12 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
             })
           });
 
-          // STRICT RULE: David Greets Once. 
-          // We can auto-play the FIRST prompt because the user explicitly clicked "Start".
+          // Set Initial Prompt from static config
           if (selectedScenario.steps[0]) {
+            setCurrentAiPrompt(selectedScenario.steps[0].aiPrompt);
+            setCurrentTips(selectedScenario.steps[0].tips);
             fetchAndPlayTTS(selectedScenario.steps[0].aiPrompt);
+            setTurnCount(1);
           }
         } catch (e) { console.error("Session Start Error", e); }
       };
@@ -178,12 +237,9 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
 
   // --- INTERACTION HANDLER ---
   const handleInteraction = async (input: string | Blob) => {
-    if (!selectedScenario || !currentStepData) return;
+    if (!selectedScenario) return;
 
-    // 1. Stop any current output
     stopAudio();
-
-    // 2. Set Processing
     setIsProcessing(true);
     abortControllerRef.current = new AbortController();
 
@@ -197,29 +253,17 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify({
           userMessage: input,
-          language, // MANDATORY
+          language,
           scenarioId: selectedScenario.id,
-          currentPrompt: currentStepData.aiPrompt
-        });
-        // Update UI immediately for text
-        setUserResponses(prev => {
-          const newArr = [...prev];
-          newArr[currentStep] = input;
-          return newArr;
+          currentPrompt: currentAiPrompt // Send what AI *last* said as context
         });
       } else {
         const formData = new FormData();
         formData.append('audio', input, 'recording.webm');
-        formData.append('language', language); // MANDATORY
+        formData.append('language', language);
         formData.append('scenarioId', selectedScenario.id);
-        formData.append('currentPrompt', currentStepData.aiPrompt);
+        formData.append('currentPrompt', currentAiPrompt);
         body = formData;
-        // UI Update for audio happens after/during? We'll put filler.
-        setUserResponses(prev => {
-          const newArr = [...prev];
-          newArr[currentStep] = "(Audio Response)";
-          return newArr;
-        });
       }
 
       const res = await fetch('http://localhost:3000/api/voice/roleplay', {
@@ -232,19 +276,30 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
       const data = await res.json();
 
       if (data.success) {
-        // 3. David Responds
-        if (data.audio) playAudio(data.audio);
-        else if (data.aiMessage) fetchAndPlayTTS(data.aiMessage);
+        // DYNAMIC FLOW: The AI's response BECOMES the next prompt
+        let responseText = data.aiMessage || "";
 
-        // 4. WAIT FOR USER INPUT -> Advance Step Logic?
-        // STRICT RULE: "Do NOT auto-advance steps... Role play progresses naturally".
-        // We will advance the step POINTER so the NEXT interaction uses the NEXT prompt logic.
-        // But we do NOT trigger AI to speak the next prompt automatically.
-        if (currentStep < selectedScenario.steps.length - 1) {
-          setCurrentStep(prev => prev + 1);
-        } else {
-          toast({ title: "Scenario Complete!", description: "You finished all steps!" });
-          // Do not close. Let user decide to exit.
+        // CHECK FOR COMPLETION SIGNAL
+        const isComplete = responseText.includes("[SCENARIO_COMPLETE]");
+
+        // Clean text for display/speech
+        responseText = responseText.replace("[SCENARIO_COMPLETE]", "").trim();
+
+        setCurrentAiPrompt(responseText);
+        setCurrentTips(isComplete ? "Scenario Finished!" : "Keep chatting!");
+
+        if (data.audio) playAudio(data.audio);
+        else if (responseText) fetchAndPlayTTS(responseText);
+
+        // Advance Turn (Unlimited)
+        setTurnCount(prev => prev + 1);
+
+        if (isComplete) {
+          toast({ title: "Conversation Finished!", description: "Great job completing the scenario!" });
+          // Small delay then finish
+          setTimeout(() => {
+            onScenarioComplete();
+          }, 4000);
         }
       }
     } catch (e: any) {
@@ -298,12 +353,14 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   const resetScenario = () => {
     stopEverything();
     setSelectedScenario(null);
-    setCurrentStep(0);
-    setUserResponses([]);
+    setTurnCount(0);
+    setCurrentAiPrompt('');
   };
 
   // --- RENDER ---
   // Selection Screen
+  const scenarios = getScenarios(language);
+
   if (!selectedScenario) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -324,9 +381,9 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   }
 
   // Active Scenario Screen
-  if (!currentStepData) return <div>Loading...</div>; // Safety Guard
+  if (!currentAiPrompt) return <div>Loading...</div>; // Init wait
 
-  const progress = ((currentStep + 1) / selectedScenario.steps.length) * 100;
+  const progress = (turnCount / 20) * 100; // Arbitrary scale for visual effect
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -334,7 +391,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         <div className="flex justify-between items-center">
           <div className="flex gap-4 items-center">
             <div className="p-3 bg-white/20 rounded-full">{selectedScenario.icon}</div>
-            <div><h2 className="text-3xl font-bold">{selectedScenario.title}</h2><p>Step {currentStep + 1} of {selectedScenario.steps.length}</p></div>
+            <div><h2 className="text-3xl font-bold">{selectedScenario.title}</h2><p>Turn {turnCount}</p></div>
           </div>
           <Button variant="outline" onClick={resetScenario} className="text-black"><ArrowLeft className="mr-2 h-4 w-4" /> Exit</Button>
         </div>
@@ -346,20 +403,12 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
           <div className="flex items-start gap-4">
             <DavidAvatar size="medium" isActive={true} mood="happy" />
             <div className="flex-1">
-              {/* Always show CURRENT prompt text, even if we are waiting for user input for it */}
-              <div className="chat-bubble chat-bubble-ai text-xl">{currentStepData.aiPrompt}</div>
-              <Button variant="ghost" size="sm" onClick={() => fetchAndPlayTTS(currentStepData.aiPrompt)} className="mt-2 text-purple-600">
+              <div className="chat-bubble chat-bubble-ai text-xl">{currentAiPrompt}</div>
+              <Button variant="ghost" size="sm" onClick={() => fetchAndPlayTTS(currentAiPrompt)} className="mt-2 text-purple-600">
                 <Play className="w-4 h-4 mr-2" /> Replay Audio
               </Button>
             </div>
           </div>
-
-          {/* Show previous answer if we are sticking to step? 
-                Actually, if we advance step immediately, this UI will show NEW step.
-                So previous user response is gone?
-                Better: Show history? Or just simple drill mode.
-                Simple Drill: New Step = Clean Slate.
-            */}
         </div>
       </Card>
 
@@ -387,7 +436,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         </div>
       </Card>
 
-      <SmartTips tip={currentStepData.tips} type="encouragement" />
+      <SmartTips tip={currentTips} type="encouragement" />
     </div>
   );
 };

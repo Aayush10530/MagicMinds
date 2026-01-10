@@ -285,7 +285,14 @@ router.post('/roleplay', authenticateToken, upload.single('audio'), async (req, 
       };
       const context = scenarioMap[session.scenario_id] || "Roleplay";
 
-      aiMessage = await aiService.generateRoleplayResponse(transcript, context, currentPrompt, session.language);
+      let history = [];
+      if (req.body.history) {
+        try {
+          history = typeof req.body.history === 'string' ? JSON.parse(req.body.history) : req.body.history;
+        } catch (e) { console.error("History parse fail", e); }
+      }
+
+      aiMessage = await aiService.generateRoleplayResponse(transcript, context, history, session.language);
 
 
     } catch (e) {

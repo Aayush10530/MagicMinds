@@ -173,13 +173,45 @@ const Index = () => {
     }
   };
 
+  const fetchProgress = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch('http://localhost:3000/api/user/progress', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUserProgress({
+          chatSessions: data.chat_sessions_count || 0,
+          roleplayCompleted: data.roleplay_completed_count || 0,
+          streak: data.streak_days || 0,
+          badges: data.badges || []
+        });
+      }
+    } catch (e) {
+      console.error("Failed to fetch progress", e);
+    }
+  };
+
   const completeLogin = (name: string, emailStr: string) => {
     setIsLoggedIn(true);
     setUserName(name);
     setEmail(emailStr);
     setShowAuth(false);
-    // Refresh progress from server would go here
+    fetchProgress(); // Load saved progress
   };
+
+  // Fetch progress on mount if logged in
+  useEffect(() => {
+    if (localStorage.getItem('token')) {
+      fetchProgress();
+    }
+  }, []);
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -222,40 +254,45 @@ const Index = () => {
 
   // Sync progress
   const updateProgress = async (type: 'chat' | 'roleplay') => {
-    // 1. Optimistic Update
-    const newProgress = {
-      ...userProgress,
-      chatSessions: type === 'chat' ? userProgress.chatSessions + 1 : userProgress.chatSessions,
-      roleplayCompleted: type === 'roleplay' ? userProgress.roleplayCompleted + 1 : userProgress.roleplayCompleted,
-    };
-
-    // Check for badges
-    if (newProgress.chatSessions === 5 && !newProgress.badges.includes('chatter')) newProgress.badges.push('chatter');
-    if (newProgress.roleplayCompleted === 3 && !newProgress.badges.includes('actor')) newProgress.badges.push('actor');
-
-    setUserProgress(newProgress);
-
-    // 2. Persist
     if (isLoggedIn) {
+      // Server-side Authority
       try {
         const token = localStorage.getItem('token');
-        await fetch('http://localhost:3000/api/user/progress', {
+        const res = await fetch('http://localhost:3000/api/user/progress/increment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            chatSessions: newProgress.chatSessions,
-            roleplayCompleted: newProgress.roleplayCompleted,
-            badges: newProgress.badges
-          })
+          body: JSON.stringify({ type })
         });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Update Local State with TRUE server state
+          setUserProgress({
+            chatSessions: data.chat_sessions_count,
+            roleplayCompleted: data.roleplay_completed_count,
+            streak: data.streak_days,
+            badges: data.badges
+          });
+        }
       } catch (err) {
         console.error("Failed to sync progress to backend", err);
       }
     } else {
-      // Fallback for guest
+      // Guest: Keep local logic
+      const newProgress = {
+        ...userProgress,
+        chatSessions: type === 'chat' ? userProgress.chatSessions + 1 : userProgress.chatSessions,
+        roleplayCompleted: type === 'roleplay' ? userProgress.roleplayCompleted + 1 : userProgress.roleplayCompleted,
+      };
+
+      // Check for badges
+      if (newProgress.chatSessions === 5 && !newProgress.badges.includes('chatter')) newProgress.badges.push('chatter');
+      if (newProgress.roleplayCompleted === 3 && !newProgress.badges.includes('actor')) newProgress.badges.push('actor');
+
+      setUserProgress(newProgress);
       localStorage.setItem(`magic_minds_progress_guest`, JSON.stringify(newProgress));
     }
   };
