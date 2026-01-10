@@ -36,6 +36,7 @@ const config = {
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
         host: process.env.DB_HOST,
+        port: process.env.DB_PORT || 5432,
         dialect: 'postgres',
         ssl: true,
         dialectOptions: {
@@ -58,7 +59,8 @@ const sequelize = new Sequelize(
         port: dbConfig.port,
         dialect: dbConfig.dialect,
         logging: dbConfig.logging,
-        pool: dbConfig.pool
+        pool: dbConfig.pool,
+        dialectOptions: dbConfig.dialectOptions
     }
 );
 
