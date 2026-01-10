@@ -11,6 +11,7 @@ import { createAudioRecorder, AudioRecorder } from '@/lib/audioUtils';
 
 interface VoiceChatProps {
   language: string;
+  userName: string;
   onSessionComplete: () => void;
   scenarioContext?: string; // "School", "Store", "Home"
 }
@@ -26,7 +27,7 @@ interface ChatMessage {
 // Strict State Machine
 type ConversationState = 'IDLE' | 'GREETING' | 'LISTENING' | 'PROCESSING' | 'SPEAKING';
 
-export const VoiceChat = ({ language, onSessionComplete, scenarioContext = "Home" }: VoiceChatProps) => {
+export const VoiceChat = ({ language, userName, onSessionComplete, scenarioContext = "Home" }: VoiceChatProps) => {
   // --- STATE ---
   const [currentState, setCurrentState] = useState<ConversationState>('IDLE');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -206,13 +207,24 @@ export const VoiceChat = ({ language, onSessionComplete, scenarioContext = "Home
 
       if (!result.success) throw new Error(result.error || "Unknown Error");
 
-      const { replyText, audio } = result;
+      const { replyText, audio, userTranscript, aiMessage } = result;
 
-      // Add AI Message
+      // 1. Add User Message (if voice input was used)
+      if (input instanceof Blob && userTranscript) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString() + '_user',
+          type: 'user',
+          text: userTranscript,
+          timestamp: new Date()
+        }]);
+      }
+
+      // 2. Add AI Message
+      const finalText = replyText || aiMessage; // Handle chat vs roleplay field names
       setMessages(prev => [...prev, {
-        id: Date.now().toString(),
+        id: Date.now().toString() + '_ai',
         type: 'ai',
-        text: replyText,
+        text: finalText,
         timestamp: new Date(),
         audioUrl: audio ? `data:audio/mp3;base64,${audio}` : undefined
       }]);
@@ -300,11 +312,11 @@ export const VoiceChat = ({ language, onSessionComplete, scenarioContext = "Home
 
       // 2. Greeting Logic
       const greetingMap: Record<string, string> = {
-        'en': "Hello! I'm David. Let's talk!",
-        'hi': "नमस्ते! मैं डेविड हूं।",
-        'mr': "नमस्कार! मी डेविड आहे.",
-        'gu': "નમસ્તે! હું ડેવિડ છું.",
-        'ta': "வணக்கம்! நான் டேவிட்."
+        'en': `Hello ${userName}, I am David. What do you want to learn or chat about?`,
+        'hi': `नमस्ते ${userName}, मैं डेविड हूं। आप क्या सीखना या बात करना चाहते हैं?`,
+        'mr': `नमस्कार ${userName}, मी डेविड आहे. तुम्हाला काय शिकायचे किंवा बोलायचे आहे?`,
+        'gu': `નમસ્તે ${userName}, હું ડેવિડ છું. તમે શું શીખવા અથવા વાત કરવા માંગો છો?`,
+        'ta': `வணக்கம் ${userName}, நான் டேவிட். நீங்கள் என்ன கற்க அல்லது பேச விரும்புகிறீர்கள்?`
       };
       const text = greetingMap[language] || greetingMap['en'];
 

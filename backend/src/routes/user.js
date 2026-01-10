@@ -19,7 +19,47 @@ const authenticate = (req, res, next) => {
     }
 };
 
-// Update Progress
+// Safe Increment Endpoint
+router.post('/progress/increment', authenticate, async (req, res) => {
+    try {
+        const { type } = req.body; // 'chat' or 'roleplay'
+        const userId = req.user.id;
+
+        let progress = await UserProgress.findOne({ where: { user_id: userId } });
+        if (!progress) {
+            progress = await UserProgress.create({ user_id: userId });
+        }
+
+        // Atomic-like update (Sequelize instance update)
+        if (type === 'chat') {
+            progress.chat_sessions_count += 1;
+        } else if (type === 'roleplay') {
+            progress.roleplay_completed_count += 1;
+        }
+
+        // Logic for Badges (Server-side is safer)
+        let badges = progress.badges || [];
+        if (progress.chat_sessions_count >= 5 && !badges.includes('chatter')) {
+            badges.push('chatter');
+        }
+        if (progress.roleplay_completed_count >= 3 && !badges.includes('actor')) {
+            badges.push('actor');
+        }
+        // Force update since array mutation might not be detected
+        progress.badges = [...badges];
+        progress.changed('badges', true);
+
+        progress.last_active_date = new Date();
+        await progress.save();
+
+        res.json(progress);
+    } catch (error) {
+        console.error('Increment error:', error);
+        res.status(500).json({ error: 'Failed to increment progress' });
+    }
+});
+
+// Update Progress (Keep for manual sync if needed, but risky)
 router.post('/progress', authenticate, async (req, res) => {
     try {
         const { chatSessions, roleplayCompleted, streak, badges } = req.body;

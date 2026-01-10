@@ -6,7 +6,7 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-const transcribeAudio = async (filePath) => {
+const transcribeAudio = async (filePath, language = 'en') => {
     try {
         if (!fs.existsSync(filePath)) {
             throw new Error(`File not found: ${filePath}`);
@@ -16,7 +16,7 @@ const transcribeAudio = async (filePath) => {
             file: fs.createReadStream(filePath),
             model: "whisper-large-v3",
             response_format: "json",
-            language: "en",
+            language: language, // Use dynamic language
             temperature: 0.0,
         });
 

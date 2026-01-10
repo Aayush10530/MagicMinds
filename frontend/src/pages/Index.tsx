@@ -392,7 +392,7 @@ const Index = () => {
         {currentMode === 'chat' && (
           <div className="max-w-4xl mx-auto">
             <Button variant="outline" onClick={() => setCurrentMode('welcome')} className="mb-4">← Home</Button>
-            <VoiceChat language={selectedLanguage} onSessionComplete={() => updateProgress('chat')} />
+            <VoiceChat language={selectedLanguage} userName={userName || "Friend"} onSessionComplete={() => updateProgress('chat')} />
           </div>
         )}
 

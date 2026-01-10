@@ -215,6 +215,7 @@ router.post('/chat', authenticateToken, upload.single('audio'), async (req, res)
     // 8. Respond
     res.json({
       success: true,
+      userTranscript: transcript,
       replyText,
       audio: audioBase64,
       error: ttsError
@@ -300,6 +301,7 @@ router.post('/roleplay', authenticateToken, upload.single('audio'), async (req, 
 
     res.json({
       success: true,
+      userTranscript: transcript,
       aiMessage,
       audio: audioBase64
     });
