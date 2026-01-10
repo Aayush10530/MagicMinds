@@ -27,7 +27,7 @@ class SpeechToTextService {
             // Write buffer to temp file
             fs.writeFileSync(tempFilePath, audioBuffer);
 
-            console.log(`Sending audio to Groq for transcription: ${tempFilePath}`);
+
 
             // Call Groq Service
             // Note: groqService.transcribeAudio expects a file path

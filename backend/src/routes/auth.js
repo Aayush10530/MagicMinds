@@ -105,4 +105,71 @@ router.get('/me', async (req, res) => {
     }
 });
 
+const { OAuth2Client } = require('google-auth-library');
+const axios = require('axios');
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "791380293314-37abc0o9vb2eeuhf4dlameq9rkusunco.apps.googleusercontent.com";
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+// Google Auth verification
+router.post('/google', async (req, res) => {
+    try {
+        const { token } = req.body;
+
+        // METHOD CHANGE: Verify Access Token by fetching User Info
+        // The frontend useGoogleLogin hook (default flow) returns an access token, not an ID token.
+        const googleUserRes = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const { sub: googleId, email, name, picture } = googleUserRes.data;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Google account has no email' });
+        }
+
+        // Find or Create User
+        let user = await User.findOne({ where: { googleId } });
+
+        if (!user) {
+            // Check if user exists by email to link
+            user = await User.findOne({ where: { email } });
+
+            if (user) {
+                // Link existing account
+                user.googleId = googleId;
+                await user.save();
+            } else {
+                // Create new user
+                user = await User.create({
+                    googleId,
+                    email,
+                    name,
+                    country: 'US', // Default
+                    password_hash: null
+                });
+
+                // Create initial progress
+                await UserProgress.create({ user_id: user.id });
+            }
+        }
+
+        // Generate App Token
+        const appToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+
+        res.json({
+            token: appToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                country: user.country
+            }
+        });
+
+    } catch (error) {
+        console.error('Google Auth Error:', error.response?.data || error.message);
+        res.status(401).json({ error: 'Invalid Google Token' });
+    }
+});
+
 module.exports = router;

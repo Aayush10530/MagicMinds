@@ -7,18 +7,23 @@ class TextToSpeechService {
   /**
    * Convert text to speech using Sarvam AI
    * @param {string} text - Text to convert to speech
+   * @param {string} text - Text to convert to speech
    * @param {string} language - Language code (for voice selection)
+   * @param {string} voiceId - Optional voice ID/speaker name to override default
    * @returns {Promise<Buffer>} - Audio buffer
    */
-  async synthesize(text, language = 'en') {
+  async synthesize(text, language = 'en', voiceId = null) {
     try {
       // Get the appropriate configuration for the language
       const { code, speaker } = this.getVoiceConfigForLanguage(language);
 
-      console.log(`Synthesizing speech with Sarvam AI. Language: ${code}, Speaker: ${speaker}`);
+      // Use provided voiceId or fallback to default speaker for language
+      const finalSpeaker = voiceId || speaker;
+
+
 
       // Call Sarvam Service
-      const buffer = await sarvamService.synthesize(text, code, speaker);
+      const buffer = await sarvamService.synthesize(text, code, finalSpeaker);
       return buffer;
 
     } catch (error) {

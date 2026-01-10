@@ -32,12 +32,12 @@ class AIService {
         { role: 'user', content: userMessage }
       ];
 
-      console.log('Sending to Groq:', JSON.stringify(messages, null, 2));
+
 
       // Call Groq Service
       const aiResponse = await groqService.generateResponse(messages);
 
-      console.log('Groq response:', aiResponse);
+
       return aiResponse;
 
     } catch (error) {
@@ -65,11 +65,11 @@ class AIService {
         { role: 'user', content: userMessage }
       ];
 
-      console.log('Sending roleplay to Groq:', JSON.stringify(messages, null, 2));
+
 
       const aiResponse = await groqService.generateResponse(messages);
 
-      console.log('Groq roleplay response:', aiResponse);
+
       return aiResponse;
 
     } catch (error) {

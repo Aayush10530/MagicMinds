@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -36,21 +36,9 @@ const scenarios: RoleplayScenario[] = [
     description: 'Practice conversations with teachers and classmates!',
     background: 'from-blue-400 to-blue-600',
     steps: [
-      {
-        id: '1',
-        aiPrompt: "Good morning! Welcome to our classroom! What's your name?",
-        tips: "Say your name clearly and add 'Good morning' to be polite!"
-      },
-      {
-        id: '2',
-        aiPrompt: "Nice to meet you! Do you like coming to school?",
-        tips: "You can say 'Yes, I like school' or 'School is fun!'"
-      },
-      {
-        id: '3',
-        aiPrompt: "That's wonderful! What's your favorite subject?",
-        tips: "Think about subjects like Math, English, Art, or Science!"
-      }
+      { id: '1', aiPrompt: "Good morning! Welcome to our classroom! What's your name?", tips: "Say your name clearly!" },
+      { id: '2', aiPrompt: "Nice to meet you! Do you like coming to school?", tips: "You can say 'Yes, I like school!'" },
+      { id: '3', aiPrompt: "That's wonderful! What's your favorite subject?", tips: "Think about subjects like Math or Art!" }
     ]
   },
   {
@@ -60,45 +48,21 @@ const scenarios: RoleplayScenario[] = [
     description: 'Learn to shop and talk to shopkeepers!',
     background: 'from-green-400 to-green-600',
     steps: [
-      {
-        id: '1',
-        aiPrompt: "Welcome to our store! How can I help you today?",
-        tips: "Say 'I want to buy...' followed by what you need!"
-      },
-      {
-        id: '2',
-        aiPrompt: "That's a great choice! How many would you like?",
-        tips: "Use numbers: 'I want one apple' or 'I need two bananas'"
-      },
-      {
-        id: '3',
-        aiPrompt: "Perfect! Here's your order. Have a great day!",
-        tips: "Remember to say 'Thank you' to be polite!"
-      }
+      { id: '1', aiPrompt: "Welcome to our store! How can I help you today?", tips: "Say 'I want to buy...'!" },
+      { id: '2', aiPrompt: "That's a great choice! How many would you like?", tips: "Use numbers like 'one' or 'two'!" },
+      { id: '3', aiPrompt: "Perfect! Here's your order. Have a great day!", tips: "Say 'Thank you'!" }
     ]
   },
   {
     id: 'home',
     title: 'At Home',
     icon: <Home className="w-8 h-8" />,
-    description: 'Practice family conversations and daily activities!',
+    description: 'Practice family conversations!',
     background: 'from-orange-400 to-orange-600',
     steps: [
-      {
-        id: '1',
-        aiPrompt: "Hi there! Who do you live with at home?",
-        tips: "You can say 'I live with my mom and dad' or mention your family!"
-      },
-      {
-        id: '2',
-        aiPrompt: "That sounds lovely! Do you help your family at home?",
-        tips: "Talk about chores like 'I help wash dishes' or 'I clean my room'"
-      },
-      {
-        id: '3',
-        aiPrompt: "You're such a good helper! What's your favorite thing to do at home?",
-        tips: "Share activities like 'I like to read books' or 'I play games'"
-      }
+      { id: '1', aiPrompt: "Hi there! Who do you live with at home?", tips: "Mention your family members!" },
+      { id: '2', aiPrompt: "That sounds lovely! Do you help at home?", tips: "Talk about chores!" },
+      { id: '3', aiPrompt: "You're a good helper! What's your favorite game?", tips: "Share what you like to play!" }
     ]
   }
 ];
@@ -113,447 +77,317 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [textInput, setTextInput] = useState('');
 
-  const handleTextSubmit = async () => {
-    if (!textInput.trim()) return;
+  // Refs for cleanup
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null); // Track recorder to stop it
 
-    const message = textInput;
-    setTextInput('');
-    setIsProcessing(true);
+  // --- SAFE GUARDS ---
+  const currentStepData = selectedScenario?.steps?.[currentStep];
 
-    // Add user response
-    setUserResponses(prev => [...prev, message]);
-
-    // Send to backend for AI response
-    try {
-      const response = await fetch('http://localhost:3000/api/voice/roleplay', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userMessage: message,
-          language: language,
-          scenarioId: selectedScenario?.id,
-          scenarioContext: selectedScenario?.title,
-          currentPrompt: selectedScenario?.steps[currentStep]?.aiPrompt
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Play AI response
-        playAIPrompt(result.aiMessage);
-      }
-    } catch (error) {
-      console.error('Roleplay API error:', error);
-      // Continue with scenario even if API fails
-      toast({
-        title: "AI Response Error",
-        description: "Could not get a response from David, but let's continue!",
-        variant: "default"
-      });
+  // --- CLEANUP ---
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
+  }, []);
 
+  const stopEverything = useCallback(() => {
+    // 1. Abort fetch
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // 2. Stop Audio
+    stopAudio();
+    // 3. Stop Mic
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
     setIsProcessing(false);
+  }, [stopAudio]);
 
-    // Move to next step after a delay
-    setTimeout(() => {
-      if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
-        setCurrentStep(prev => prev + 1);
-      } else {
-        // Scenario complete
-        toast({
-          title: "Scenario Complete! 🎉",
-          description: "Great job! You completed the roleplay successfully!",
-        });
-        onScenarioComplete();
+  // Cleanup on unmount or scenario change
+  useEffect(() => {
+    return () => stopEverything();
+  }, [stopEverything, selectedScenario]);
+
+  // --- TTS ---
+  const playAudio = useCallback((base64Audio: string) => {
+    stopAudio(); // Stop previous
+    const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+    audioRef.current = audio;
+    audio.play().catch(e => console.error("Audio play failed", e));
+  }, [stopAudio]);
+
+  const fetchAndPlayTTS = async (text: string) => {
+    // Abort previous TTS fetch if any? No, let's just facilitate user action.
+    try {
+      const token = localStorage.getItem('token');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('http://localhost:3000/api/voice/tts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ text, language }) // ALWAYS pass language
+      });
+      const data = await res.json();
+      if (data.success && data.audio) {
+        playAudio(data.audio);
       }
-    }, 2000);
+    } catch (e) {
+      console.error("TTS Error", e);
+    }
   };
 
-  // Use refs for recording to match VoiceChat implementation
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  const startRecording = async () => {
-    try {
-      if (!navigator.onLine) {
-        toast({
-          title: "You are offline",
-          description: "Voice recognition requires an internet connection. Try using the keyboard!",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-      const audioChunks: Blob[] = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunks.push(event.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        setIsProcessing(true);
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
+  // --- SESSION INIT ---
+  // Start session ONLY when scenario is selected. 
+  // STRICT RULE: No auto-start on mount. But here "selection" IS the explicit user action.
+  useEffect(() => {
+    if (selectedScenario) {
+      const initSession = async () => {
         try {
-          // 1. Transcribe
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          formData.append('language', language);
+          const token = localStorage.getItem('token');
+          const headers: any = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
 
-          const transResponse = await fetch('http://localhost:3000/api/voice/transcribe', {
+          await fetch('http://localhost:3000/api/voice/session/start', {
             method: 'POST',
-            body: formData
-          });
-
-          if (!transResponse.ok) throw new Error("Transcription failed");
-          const transResult = await transResponse.json();
-
-          if (!transResult.success || !transResult.transcript) throw new Error("No transcript");
-
-          const transcript = transResult.transcript;
-          console.log('Roleplay transcript:', transcript);
-
-          // 2. Process Response (Roleplay Logic)
-          setUserResponses(prev => [...prev, transcript]);
-
-          const rpResponse = await fetch('http://localhost:3000/api/voice/roleplay', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
-              userMessage: transcript,
-              language: language,
-              scenarioId: selectedScenario?.id,
-              scenarioContext: selectedScenario?.title,
-              currentPrompt: selectedScenario?.steps[currentStep]?.aiPrompt
+              type: 'roleplay',
+              language,
+              scenarioId: selectedScenario.id,
+              scenarioContext: selectedScenario.title
             })
           });
 
-          if (rpResponse.ok) {
-            const rpResult = await rpResponse.json();
-            if (rpResult.success && rpResult.aiMessage) {
-              playAIPrompt(rpResult.aiMessage);
-            }
+          // STRICT RULE: David Greets Once. 
+          // We can auto-play the FIRST prompt because the user explicitly clicked "Start".
+          if (selectedScenario.steps[0]) {
+            fetchAndPlayTTS(selectedScenario.steps[0].aiPrompt);
           }
-
-          // Advance Step
-          setTimeout(() => {
-            if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
-              setCurrentStep(prev => prev + 1);
-            } else {
-              toast({
-                title: "Scenario Complete! 🎉",
-                description: "Great job! You completed the roleplay successfully!",
-              });
-              onScenarioComplete();
-            }
-          }, 2000);
-
-        } catch (error) {
-          console.error("Processing error:", error);
-          toast({
-            title: "Voice Error",
-            description: "Could not understand speech. Please try Text Mode.",
-            variant: "destructive"
-          });
-        } finally {
-          setIsProcessing(false);
-          stream.getTracks().forEach(track => track.stop());
-        }
+        } catch (e) { console.error("Session Start Error", e); }
       };
+      initSession();
+    }
+  }, [selectedScenario, language]);
 
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setIsRecording(true);
+  // --- INTERACTION HANDLER ---
+  const handleInteraction = async (input: string | Blob) => {
+    if (!selectedScenario || !currentStepData) return;
 
-      // Auto-stop after 10s
-      setTimeout(() => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-          setIsRecording(false);
-        }
-      }, 10000);
+    // 1. Stop any current output
+    stopAudio();
 
-    } catch (error) {
-      console.error("Start recording error:", error);
-      toast({
-        title: "Microphone Access Denied",
-        description: "Please allow microphone access to use voice.",
-        variant: "destructive"
+    // 2. Set Processing
+    setIsProcessing(true);
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const token = localStorage.getItem('token');
+      let headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      let body;
+      if (typeof input === 'string') {
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({
+          userMessage: input,
+          language, // MANDATORY
+          scenarioId: selectedScenario.id,
+          currentPrompt: currentStepData.aiPrompt
+        });
+        // Update UI immediately for text
+        setUserResponses(prev => {
+          const newArr = [...prev];
+          newArr[currentStep] = input;
+          return newArr;
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('audio', input, 'recording.webm');
+        formData.append('language', language); // MANDATORY
+        formData.append('scenarioId', selectedScenario.id);
+        formData.append('currentPrompt', currentStepData.aiPrompt);
+        body = formData;
+        // UI Update for audio happens after/during? We'll put filler.
+        setUserResponses(prev => {
+          const newArr = [...prev];
+          newArr[currentStep] = "(Audio Response)";
+          return newArr;
+        });
+      }
+
+      const res = await fetch('http://localhost:3000/api/voice/roleplay', {
+        method: 'POST',
+        headers,
+        body,
+        signal: abortControllerRef.current.signal
       });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // 3. David Responds
+        if (data.audio) playAudio(data.audio);
+        else if (data.aiMessage) fetchAndPlayTTS(data.aiMessage);
+
+        // 4. WAIT FOR USER INPUT -> Advance Step Logic?
+        // STRICT RULE: "Do NOT auto-advance steps... Role play progresses naturally".
+        // We will advance the step POINTER so the NEXT interaction uses the NEXT prompt logic.
+        // But we do NOT trigger AI to speak the next prompt automatically.
+        if (currentStep < selectedScenario.steps.length - 1) {
+          setCurrentStep(prev => prev + 1);
+        } else {
+          toast({ title: "Scenario Complete!", description: "You finished all steps!" });
+          // Do not close. Let user decide to exit.
+        }
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error(e);
+        toast({ title: "Error", description: "Interaction failed", variant: "destructive" });
+      }
+    } finally {
+      setIsProcessing(false);
+      abortControllerRef.current = null;
     }
   };
 
-
-
-  const getLanguageCode = (language: string): string => {
-    const languageMap: { [key: string]: string } = {
-      'en': 'en-US',
-      'hi': 'hi-IN',
-      'mr': 'mr-IN',
-      'gu': 'gu-IN',
-      'ta': 'ta-IN'
-    };
-    return languageMap[language] || 'en-US';
+  const handleTextSubmit = () => {
+    if (!textInput.trim()) return;
+    handleInteraction(textInput);
+    setTextInput('');
   };
 
-  const playAIPrompt = (text: string) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.8;
-      utterance.pitch = 1.1;
-      window.speechSynthesis.speak(utterance);
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      const audioChunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        if (audioBlob.size > 1000) {
+          handleInteraction(audioBlob);
+        }
+        stream.getTracks().forEach(t => t.stop());
+        setIsRecording(false);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (e) {
+      toast({ title: "Mic Error", description: "Could not access microphone" });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
     }
   };
 
   const resetScenario = () => {
+    stopEverything();
     setSelectedScenario(null);
     setCurrentStep(0);
     setUserResponses([]);
   };
 
-  const nextStep = () => {
-    if (selectedScenario && currentStep < selectedScenario.steps.length - 1) {
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
-    }
-  };
-
+  // --- RENDER ---
+  // Selection Screen
   if (!selectedScenario) {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="grid md:grid-cols-3 gap-6">
           {scenarios.map((scenario) => (
-            <Card
-              key={scenario.id}
-              className={`p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br ${scenario.background} text-white border-0 relative overflow-hidden`}
-              onClick={() => setSelectedScenario(scenario)}
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16"></div>
-              <div className="relative z-10 text-center space-y-4">
-                <div className="flex justify-center">
-                  {scenario.icon}
-                </div>
+            <Card key={scenario.id} className={`p-6 cursor-pointer bg-gradient-to-br ${scenario.background} text-white`} onClick={() => setSelectedScenario(scenario)}>
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">{scenario.icon}</div>
                 <h3 className="text-2xl font-bold">{scenario.title}</h3>
                 <p className="text-white/90">{scenario.description}</p>
-                <Button
-                  variant="outline"
-                  className="bg-white/20 border-white/30 text-white hover:bg-white/30 w-full"
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Start Adventure
-                </Button>
+                <Button variant="outline" className="w-full text-black"><Play className="w-4 h-4 mr-2" /> Start</Button>
               </div>
             </Card>
           ))}
         </div>
-
-        <Card className="mt-8 p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200">
-          <div className="text-center space-y-2">
-            <h3 className="text-xl font-bold text-purple-800">Choose Your Adventure! 🗺️</h3>
-            <p className="text-purple-600">
-              Pick a scenario and practice real-life conversations with David!
-            </p>
-          </div>
-        </Card>
       </div>
     );
   }
 
-  const currentStepData = selectedScenario.steps[currentStep];
+  // Active Scenario Screen
+  if (!currentStepData) return <div>Loading...</div>; // Safety Guard
+
   const progress = ((currentStep + 1) / selectedScenario.steps.length) * 100;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Scenario Header */}
       <Card className={`p-6 bg-gradient-to-r ${selectedScenario.background} text-white border-0`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/20 rounded-full">
-              {selectedScenario.icon}
-            </div>
-            <div>
-              <h2 className="text-3xl font-bold">{selectedScenario.title}</h2>
-              <p className="text-white/90">Step {currentStep + 1} of {selectedScenario.steps.length}</p>
-            </div>
+        <div className="flex justify-between items-center">
+          <div className="flex gap-4 items-center">
+            <div className="p-3 bg-white/20 rounded-full">{selectedScenario.icon}</div>
+            <div><h2 className="text-3xl font-bold">{selectedScenario.title}</h2><p>Step {currentStep + 1} of {selectedScenario.steps.length}</p></div>
           </div>
-          <Button
-            variant="outline"
-            onClick={resetScenario}
-            className="bg-white/20 border-white/30 text-white hover:bg-white/30"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Scenarios
-          </Button>
+          <Button variant="outline" onClick={resetScenario} className="text-black"><ArrowLeft className="mr-2 h-4 w-4" /> Exit</Button>
         </div>
-
-        <div className="mt-4">
-          <Progress value={progress} className="h-3 bg-white/20" />
-        </div>
+        <Progress value={progress} className="mt-4 h-3 bg-white/20" />
       </Card>
 
-      {/* Conversation Area */}
-      <Card className="p-8 bg-white/90 backdrop-blur border-purple-200">
+      <Card className="p-8 bg-white/90 backdrop-blur">
         <div className="space-y-6">
-          {/* AI Prompt */}
           <div className="flex items-start gap-4">
             <DavidAvatar size="medium" isActive={true} mood="happy" />
             <div className="flex-1">
-              <div className="chat-bubble chat-bubble-ai text-xl">
-                {currentStepData.aiPrompt}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => playAIPrompt(currentStepData.aiPrompt)}
-                className="mt-2 text-purple-600 hover:text-purple-800"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Hear David Speak
+              {/* Always show CURRENT prompt text, even if we are waiting for user input for it */}
+              <div className="chat-bubble chat-bubble-ai text-xl">{currentStepData.aiPrompt}</div>
+              <Button variant="ghost" size="sm" onClick={() => fetchAndPlayTTS(currentStepData.aiPrompt)} className="mt-2 text-purple-600">
+                <Play className="w-4 h-4 mr-2" /> Replay Audio
               </Button>
             </div>
           </div>
 
-          {/* User Response */}
-          {userResponses[currentStep] && (
-            <div className="flex items-start gap-4 justify-end">
-              <div className="chat-bubble chat-bubble-user text-xl">
-                {userResponses[currentStep]}
-              </div>
-              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-400 to-green-400 flex items-center justify-center text-white font-bold">
-                👤
-              </div>
-            </div>
-          )}
+          {/* Show previous answer if we are sticking to step? 
+                Actually, if we advance step immediately, this UI will show NEW step.
+                So previous user response is gone?
+                Better: Show history? Or just simple drill mode.
+                Simple Drill: New Step = Clean Slate.
+            */}
         </div>
       </Card>
 
-      {/* Interaction Controls */}
       <Card className={`p-8 bg-gradient-to-r ${selectedScenario.background} text-white border-0`}>
         <div className="text-center space-y-6">
-
-          {/* Default to Voice, but allow keyboard toggle */}
-          {!userResponses[currentStep] && (
-            <div className="flex flex-col items-center gap-4">
-
-              {showKeyboard ? (
-                <div className="w-full max-w-lg space-y-4 animate-in fade-in zoom-in duration-300">
-                  <Textarea
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    placeholder="Type your answer here..."
-                    className="w-full p-4 rounded-xl text-gray-800 text-lg min-h-[120px] focus:ring-4 focus:ring-white/50 border-none"
-                    autoFocus
-                  />
-                  <div className="flex gap-4 justify-center">
-                    <Button
-                      onClick={handleTextSubmit}
-                      disabled={!textInput.trim() || isProcessing}
-                      className="bg-white text-purple-600 hover:bg-white/90 font-bold px-8 py-4 rounded-full text-lg"
-                    >
-                      Send Answer 🚀
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowKeyboard(false)}
-                      className="bg-transparent border-white text-white hover:bg-white/20 rounded-full"
-                    >
-                      <Mic className="w-4 h-4 mr-2" />
-                      Use Voice
-                    </Button>
-                  </div>
+          <div className="flex flex-col items-center gap-4">
+            {showKeyboard ? (
+              <div className="w-full max-w-lg space-y-4">
+                <Textarea value={textInput} onChange={(e) => setTextInput(e.target.value)} placeholder="Type answer..." className="text-black text-lg p-4" />
+                <div className="flex gap-4 justify-center">
+                  <Button onClick={handleTextSubmit} disabled={isProcessing} className="bg-white text-purple-600 font-bold px-8 py-4">Send 🚀</Button>
+                  <Button variant="outline" onClick={() => setShowKeyboard(false)} className="text-white border-white">Use Voice</Button>
                 </div>
-              ) : (
-                <>
-                  <Button
-                    onClick={startRecording}
-                    disabled={isProcessing}
-                    className={`w-24 h-24 rounded-full text-white border-4 border-white transition-all duration-300 ${isRecording
-                      ? 'bg-red-500 hover:bg-red-600 animate-pulse-glow'
-                      : 'bg-green-500 hover:bg-green-600 hover:scale-110'
-                      }`}
-                  >
-                    {isRecording ? (
-                      <MicOff className="w-12 h-12" />
-                    ) : (
-                      <Mic className="w-12 h-12" />
-                    )}
-                  </Button>
-
-                  <div className="space-y-2">
-                    <p className="text-xl font-bold">
-                      {isRecording ? '🎤 Recording your response...' :
-                        isProcessing ? '⚡ Processing...' :
-                          '🎙️ Your turn to speak!'}
-                    </p>
-                    <button
-                      onClick={() => setShowKeyboard(true)}
-                      className="text-white/80 hover:text-white underline text-sm transition-colors"
-                    >
-                      Can't speak right now? Use keyboard ⌨️
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Post-response Navigation */}
-          {userResponses[currentStep] && (
-            <div className="space-y-4">
-              <p className="text-xl font-bold">✅ Great response!</p>
-              <p className="text-white/90">Ready for the next step!</p>
-
-              <div className="flex justify-center gap-4">
-                <Button
-                  variant="outline"
-                  onClick={prevStep}
-                  disabled={currentStep === 0}
-                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={nextStep}
-                  disabled={currentStep >= selectedScenario.steps.length - 1}
-                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
-                >
-                  Next
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
               </div>
-            </div>
-          )}
+            ) : (
+              <>
+                <Button onClick={isRecording ? stopRecording : startRecording} disabled={isProcessing && !isRecording} className={`w-24 h-24 rounded-full border-4 border-white ${isRecording ? 'bg-red-500' : 'bg-green-500'}`}>
+                  {isRecording ? <MicOff className="w-12 h-12" /> : <Mic className="w-12 h-12" />}
+                </Button>
+                <p className="text-xl font-bold">{isRecording ? 'Recording...' : isProcessing ? 'Processing...' : 'Your Turn!'}</p>
+                <button onClick={() => setShowKeyboard(true)} className="underline text-sm">Use Keyboard</button>
+              </>
+            )}
+          </div>
         </div>
       </Card>
 
-      {/* Smart Tips */}
       <SmartTips tip={currentStepData.tips} type="encouragement" />
-
-      {/* Emoji Reactions */}
-      {userResponses[currentStep] && (
-        <EmojiReactions onReaction={(emoji) =>
-          toast({
-            title: `Thanks for the ${emoji}!`,
-            description: "Your feedback helps me improve!",
-          })
-        } />
-      )}
     </div>
   );
 };

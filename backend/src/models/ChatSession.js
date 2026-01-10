@@ -26,6 +26,20 @@ const ChatSession = sequelize.define('ChatSession', {
     summary: {
         type: DataTypes.TEXT,
         allowNull: true
+    },
+    language: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'en'
+    },
+    voice_id: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'abhilash' // Default Sarvam voice
+    },
+    system_prompt: {
+        type: DataTypes.TEXT,
+        allowNull: true // Persisted prompt for Role Play stability
     }
 }, {
     timestamps: true,
