@@ -220,21 +220,75 @@ const Index = () => {
     googleLogin();
   };
 
-  const updateProgress = (type: 'chat' | 'roleplay') => {
-    setUserProgress(prev => {
-      const updated = {
-        ...prev,
-        chatSessions: type === 'chat' ? prev.chatSessions + 1 : prev.chatSessions,
-        roleplayCompleted: type === 'roleplay' ? prev.roleplayCompleted + 1 : prev.roleplayCompleted,
-      };
+  // Sync progress
+  const updateProgress = async (type: 'chat' | 'roleplay') => {
+    // 1. Optimistic Update
+    const newProgress = {
+      ...userProgress,
+      chatSessions: type === 'chat' ? userProgress.chatSessions + 1 : userProgress.chatSessions,
+      roleplayCompleted: type === 'roleplay' ? userProgress.roleplayCompleted + 1 : userProgress.roleplayCompleted,
+    };
 
-      if (updated.chatSessions === 5 && !updated.badges.includes('chatter')) updated.badges.push('chatter');
-      if (updated.roleplayCompleted === 3 && !updated.badges.includes('actor')) updated.badges.push('actor');
+    // Check for badges
+    if (newProgress.chatSessions === 5 && !newProgress.badges.includes('chatter')) newProgress.badges.push('chatter');
+    if (newProgress.roleplayCompleted === 3 && !newProgress.badges.includes('actor')) newProgress.badges.push('actor');
 
-      localStorage.setItem('david-progress', JSON.stringify(updated));
-      return updated;
-    });
+    setUserProgress(newProgress);
+
+    // 2. Persist
+    if (isLoggedIn) {
+      try {
+        const token = localStorage.getItem('token');
+        await fetch('http://localhost:3000/api/user/progress', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            chatSessions: newProgress.chatSessions,
+            roleplayCompleted: newProgress.roleplayCompleted,
+            badges: newProgress.badges
+          })
+        });
+      } catch (err) {
+        console.error("Failed to sync progress to backend", err);
+      }
+    } else {
+      // Fallback for guest
+      localStorage.setItem(`magic_minds_progress_guest`, JSON.stringify(newProgress));
+    }
   };
+
+  // Fetch progress on login
+  useEffect(() => {
+    if (isLoggedIn && email) {
+      const fetchProgress = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch('http://localhost:3000/api/user/progress', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUserProgress({
+              chatSessions: data.chat_sessions_count || 0,
+              roleplayCompleted: data.roleplay_completed_count || 0,
+              streak: data.streak_days || 0,
+              badges: data.badges || []
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      fetchProgress();
+    } else if (!isLoggedIn) {
+      // Load guest progress
+      const saved = JSON.parse(localStorage.getItem(`magic_minds_progress_guest`) || '{}');
+      if (saved.chatSessions) setUserProgress(saved);
+    }
+  }, [isLoggedIn, email]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100 relative overflow-hidden">

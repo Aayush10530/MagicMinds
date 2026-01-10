@@ -39,6 +39,7 @@ const authRouter = require('./routes/auth');
 app.use('/api/upload', uploadRouter);
 app.use('/api/voice', voiceRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/user', require('./routes/user'));
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
