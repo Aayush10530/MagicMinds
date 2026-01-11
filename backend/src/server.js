@@ -32,12 +32,24 @@ const allowedOrigins = [
   process.env.CORS_ORIGIN          // Allow env variable
 ].filter(Boolean);                 // Remove null/undefined
 
+// 1. Global CORS Middleware - MUST be first
 app.use(cors({
-  origin: true, // Reflects the request origin (Allows everything)
-  credentials: true
+  origin: true, // Reflects the request origin
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
-// Helmet Security (Relaxed for Internal API usage)
+// 2. Explicit OPTIONS Handler (Preflight Fix for Express 5)
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+// 3. Helmet Security (Relaxed for Internal API usage)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Fixes "CORP" block
 }));
