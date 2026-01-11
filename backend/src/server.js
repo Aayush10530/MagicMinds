@@ -33,26 +33,14 @@ const allowedOrigins = [
 ].filter(Boolean);                 // Remove null/undefined
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Check allowed origins
-    const isAllowed = allowedOrigins.includes(origin) ||
-      origin.endsWith('.vercel.app') || // Allow all Vercel deployments
-      origin === process.env.CORS_ORIGIN;
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.log('Blocked by CORS:', origin); // Debug log
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Reflects the request origin (Allows everything)
   credentials: true
 }));
-// app.options('*', cors()); // REMOVED: Incompatible with Express 5 path syntax
-app.use(helmet());
+
+// Helmet Security (Relaxed for Internal API usage)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Fixes "CORP" block
+}));
 
 // Rate Limiting
 const limiter = rateLimit({
