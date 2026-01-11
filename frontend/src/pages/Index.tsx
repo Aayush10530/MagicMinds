@@ -14,6 +14,8 @@ import { Mic, MessageCircle, Drama, X, ArrowLeft, Eye, EyeOff, Loader2 } from 'l
 import { User } from '@/components/User';
 import RotatingText from '@/components/RotatingText';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export type AppMode = 'welcome' | 'chat' | 'roleplay';
 export type Language = 'en' | 'hi' | 'mr' | 'gu' | 'ta';
 
@@ -64,7 +66,7 @@ const Index = () => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const res = await fetch('http://localhost:3000/api/auth/me', {
+          const res = await fetch(API_URL + '/api/auth/me', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (res.ok) {
@@ -120,7 +122,7 @@ const Index = () => {
     setAuthError('');
 
     try {
-      const res = await fetch('http://localhost:3000/api/auth/login', {
+      const res = await fetch(API_URL + '/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -152,7 +154,7 @@ const Index = () => {
     setAuthError('');
 
     try {
-      const res = await fetch('http://localhost:3000/api/auth/register', {
+      const res = await fetch(API_URL + '/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name: userName || email.split('@')[0], country })
@@ -178,7 +180,7 @@ const Index = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch('http://localhost:3000/api/user/progress', {
+      const res = await fetch(API_URL + '/api/user/progress', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -221,7 +223,7 @@ const Index = () => {
 
       try {
         // Phase 2: Send token to Backend to verify and login/signup
-        const res = await fetch('http://localhost:3000/api/auth/google', {
+        const res = await fetch(API_URL + '/api/auth/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: tokenResponse.access_token })
@@ -258,7 +260,7 @@ const Index = () => {
       // Server-side Authority
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:3000/api/user/progress/increment', {
+        const res = await fetch(API_URL + '/api/user/progress/increment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -303,7 +305,7 @@ const Index = () => {
       const fetchProgress = async () => {
         try {
           const token = localStorage.getItem('token');
-          const res = await fetch('http://localhost:3000/api/user/progress', {
+          const res = await fetch(API_URL + '/api/user/progress', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (res.ok) {

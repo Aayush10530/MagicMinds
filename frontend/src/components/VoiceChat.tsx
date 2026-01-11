@@ -9,6 +9,8 @@ import { Mic, MicOff, Volume2, RotateCcw, Send, MessageSquare } from 'lucide-rea
 import { useToast } from '@/hooks/use-toast';
 import { createAudioRecorder, AudioRecorder } from '@/lib/audioUtils';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface VoiceChatProps {
   language: string;
   userName: string;
@@ -112,7 +114,7 @@ export const VoiceChat = ({ language, userName, onSessionComplete, scenarioConte
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      await fetch('http://localhost:3000/api/voice/session/start', {
+      await fetch(API_URL + '/api/voice/session/start', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -134,7 +136,7 @@ export const VoiceChat = ({ language, userName, onSessionComplete, scenarioConte
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('http://localhost:3000/api/voice/tts', {
+      const res = await fetch(API_URL + '/api/voice/tts', {
         method: 'POST',
         headers,
         body: JSON.stringify({ text, language })
@@ -162,7 +164,7 @@ export const VoiceChat = ({ language, userName, onSessionComplete, scenarioConte
     const headers: any = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch('http://localhost:3000/api/voice/chat', {
+    const res = await fetch(API_URL + '/api/voice/chat', {
       method: 'POST',
       headers,
       body: formData,
@@ -180,7 +182,7 @@ export const VoiceChat = ({ language, userName, onSessionComplete, scenarioConte
     const headers: any = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch('http://localhost:3000/api/voice/chat', {
+    const res = await fetch(API_URL + '/api/voice/chat', {
       method: 'POST',
       headers,
       body: JSON.stringify({ userMessage: text }),

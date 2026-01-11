@@ -9,6 +9,8 @@ import { SmartTips } from './SmartTips';
 import { Mic, MicOff, Play, ArrowLeft, ArrowRight, Home, ShoppingCart, School } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface RoleplayScenario {
   id: string;
   title: string;
@@ -188,7 +190,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('http://localhost:3000/api/voice/tts', {
+      const res = await fetch(API_URL + '/api/voice/tts', {
         method: 'POST',
         headers,
         body: JSON.stringify({ text, language })
@@ -211,7 +213,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
           const headers: any = { 'Content-Type': 'application/json' };
           if (token) headers['Authorization'] = `Bearer ${token}`;
 
-          await fetch('http://localhost:3000/api/voice/session/start', {
+          await fetch(API_URL + '/api/voice/session/start', {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -266,7 +268,7 @@ export const RoleplayScenarios = ({ language, onScenarioComplete }: RoleplayScen
         body = formData;
       }
 
-      const res = await fetch('http://localhost:3000/api/voice/roleplay', {
+      const res = await fetch(API_URL + '/api/voice/roleplay', {
         method: 'POST',
         headers,
         body,
