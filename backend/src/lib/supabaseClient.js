@@ -15,7 +15,17 @@ if (!supabaseUrl || !supabaseKey) {
         }
     };
 } else {
-    supabase = createClient(supabaseUrl, supabaseKey);
+    try {
+        supabase = createClient(supabaseUrl, supabaseKey);
+    } catch (err) {
+        console.error("❌ CRITICAL: Failed to initialize Supabase Client:", err.message);
+        // Fallback to dummy to keep server alive
+        supabase = {
+            auth: {
+                getUser: async () => ({ data: { user: null }, error: { message: "Supabase init failed: " + err.message } })
+            }
+        };
+    }
 }
 
 module.exports = { supabase };
