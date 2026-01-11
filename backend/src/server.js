@@ -45,6 +45,7 @@ app.use(cors({
   },
   credentials: true
 }));
+app.options('*', cors()); // Enable pre-flight requests for all routes
 app.use(helmet());
 
 // Rate Limiting
@@ -88,6 +89,6 @@ io.on('connection', (socket) => {
 });
 
 // Start Server
-server.listen(PORT, () => {
-  console.log(`Magic Minds backend listening on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Magic Minds backend listening on port ${PORT} at 0.0.0.0`);
 }); 
