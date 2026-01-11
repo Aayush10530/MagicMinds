@@ -14,6 +14,12 @@ const { Server } = require('socket.io');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+console.log('-----------------------------------');
+console.log('🚀 Server Starting...');
+console.log('🌍 PORT:', PORT);
+console.log('🔒 CORS_ORIGIN:', process.env.CORS_ORIGIN || '(Falling back to localhost:8080)');
+console.log('-----------------------------------');
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
