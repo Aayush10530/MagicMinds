@@ -45,7 +45,7 @@ app.use(cors({
   },
   credentials: true
 }));
-app.options('*', cors()); // Enable pre-flight requests for all routes
+// app.options('*', cors()); // REMOVED: Incompatible with Express 5 path syntax
 app.use(helmet());
 
 // Rate Limiting
