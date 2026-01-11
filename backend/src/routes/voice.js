@@ -5,7 +5,7 @@ const config = require('../config/index');
 const aiService = require('../services/aiService');
 const textToSpeech = require('../services/textToSpeech');
 const groqService = require('../services/groqService');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateSupabase } = require('../middleware/authSupabase');
 const { ChatSession, ChatMessage } = require('../db');
 const { Op } = require('sequelize');
 const fs = require('fs');
@@ -91,7 +91,7 @@ const getActiveSession = async (userId, type = 'chat', forceNew = false, session
  * Explicitly start a new session (Chat or Roleplay)
  * This is the ONLY place where Language/Voice/Scenario is set.
  */
-router.post('/session/start', authenticateToken, async (req, res, next) => {
+router.post('/session/start', authenticateSupabase, async (req, res, next) => {
   const requestId = `req-init-${Date.now()}`;
   try {
     const { type = 'chat', language = 'en', scenarioId, scenarioContext } = req.body;
@@ -123,7 +123,7 @@ router.post('/session/start', authenticateToken, async (req, res, next) => {
  * Main Voice Chat Endpoint
  * Uses persistent session state.
  */
-router.post('/chat', authenticateToken, upload.single('audio'), async (req, res) => {
+router.post('/chat', authenticateSupabase, upload.single('audio'), async (req, res) => {
   const requestId = `req-chat-${Date.now()}`;
 
 
@@ -231,7 +231,7 @@ router.post('/chat', authenticateToken, upload.single('audio'), async (req, res)
  * POST /api/voice/roleplay
  * Roleplay Endpoint (Session-Aware)
  */
-router.post('/roleplay', authenticateToken, upload.single('audio'), async (req, res) => {
+router.post('/roleplay', authenticateSupabase, upload.single('audio'), async (req, res) => {
   const requestId = `req-rp-${Date.now()}`;
 
 

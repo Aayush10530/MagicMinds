@@ -62,11 +62,11 @@ app.get('/api/health', (req, res) => {
 
 const uploadRouter = require('./routes/upload');
 const voiceRouter = require('./routes/voice');
-const authRouter = require('./routes/auth');
+// const authRouter = require('./routes/auth'); // REMOVED
 
 app.use('/api/upload', uploadRouter);
 app.use('/api/voice', voiceRouter);
-app.use('/api/auth', authRouter);
+// app.use('/api/auth', authRouter); // REMOVED: Replaced by Supabase Auth
 app.use('/api/user', require('./routes/user'));
 
 // Error Handling Middleware

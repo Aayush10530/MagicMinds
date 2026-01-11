@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useGoogleLogin } from '@react-oauth/google';
+import { supabase } from '@/lib/supabase';
 import { DavidAvatar } from '@/components/DavidAvatar';
 import { VoiceChat } from '@/components/VoiceChat';
 import { RoleplayScenarios } from '@/components/RoleplayScenarios';
@@ -60,30 +60,30 @@ const Index = () => {
     users[email] = data;
     localStorage.setItem('magic_minds_users', JSON.stringify(users));
   };
-  // Check for existing token
+  // Check for existing session
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const res = await fetch(API_URL + '/api/auth/me', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const user = await res.json();
-            setIsLoggedIn(true);
-            setUserName(user.name);
-            setEmail(user.email);
-          } else {
-            localStorage.removeItem('token');
-          }
-        } catch (error) {
-          console.error('Auth verification failed', error);
-          localStorage.removeItem('token');
-        }
+    // 1. Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        completeLogin(session);
       }
-    };
-    checkAuth();
+    });
+
+    // 2. Listen for changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        completeLogin(session);
+      } else {
+        setIsLoggedIn(false);
+        setUserName('');
+        setEmail('');
+        setUserProgress({ chatSessions: 0, roleplayCompleted: 0, streak: 0, badges: [] });
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const resetAuth = () => {
@@ -122,19 +122,15 @@ const Index = () => {
     setAuthError('');
 
     try {
-      const res = await fetch(API_URL + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setAuthError(data.error || 'Login failed');
-      } else {
-        localStorage.setItem('token', data.token);
-        completeLogin(data.user.name, data.user.email);
+      if (error) {
+        setAuthError(error.message);
+      } else if (data.session) {
+        completeLogin(data.session);
       }
     } catch (error) {
       setAuthError('Connection error. Please try again.');
@@ -154,19 +150,25 @@ const Index = () => {
     setAuthError('');
 
     try {
-      const res = await fetch(API_URL + '/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name: userName || email.split('@')[0], country })
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: userName || email.split('@')[0],
+            country,
+            // Add any other metadata here
+          },
+        },
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setAuthError(data.error || 'Registration failed');
-      } else {
-        localStorage.setItem('token', data.token);
-        completeLogin(data.user.name, data.user.email);
+      if (error) {
+        setAuthError(error.message);
+      } else if (data.session) {
+        completeLogin(data.session);
+      } else if (data.user) {
+        // Email confirmation required case??
+        setAuthError("Please check your email to confirm registration!");
       }
     } catch (error) {
       setAuthError('Connection error. Please try again.');
@@ -200,10 +202,13 @@ const Index = () => {
     }
   };
 
-  const completeLogin = (name: string, emailStr: string) => {
+  const completeLogin = (session: any) => {
+    const user = session.user;
     setIsLoggedIn(true);
-    setUserName(name);
-    setEmail(emailStr);
+    setUserName(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || "Friend");
+    setEmail(user.email || "");
+    // Bridge for legacy API calls that expect 'token' in localStorage
+    localStorage.setItem('token', session.access_token);
     setShowAuth(false);
     fetchProgress(); // Load saved progress
   };
@@ -215,43 +220,23 @@ const Index = () => {
     }
   }, []);
 
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      console.log('Google Auth Response:', tokenResponse);
-      setIsLoading(true);
-      setAuthError("");
-
-      try {
-        // Phase 2: Send token to Backend to verify and login/signup
-        const res = await fetch(API_URL + '/api/auth/google', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: tokenResponse.access_token })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setAuthError(data.error || 'Google Login failed');
-        } else {
-          localStorage.setItem('token', data.token);
-          completeLogin(data.user.name, data.user.email);
-        }
-      } catch (error) {
-        console.error("Google verify error:", error);
-        setAuthError('Connection error. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    onError: error => {
-      console.error('Google Login Error:', error);
-      setAuthError("Google Login failed. Please try again.");
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+      if (error) setAuthError(error.message);
+    } catch (error) {
+      console.error("Google login error:", error);
+      setAuthError("Google Login failed.");
     }
-  });
-
-  const handleGoogleLogin = () => {
-    googleLogin();
   };
 
   // Sync progress
@@ -473,11 +458,10 @@ const Index = () => {
                     <p className="font-semibold text-gray-800">{userName || email}</p>
                   </div>
                   <Button
-                    onClick={() => {
-                      setIsLoggedIn(false);
-                      setUserName('');
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      // State update will happen via onAuthStateChange listener
                       localStorage.removeItem('token');
-                      resetAuth();
                     }}
                     className="w-full bg-red-50 text-red-600 hover:bg-red-100 border-0"
                   >

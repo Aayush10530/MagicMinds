@@ -5,22 +5,10 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'magic_secret_key_123';
 
-// Middleware to authenticate user
-const authenticate = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token provided' });
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (error) {
-        res.status(401).json({ error: 'Invalid token' });
-    }
-};
+const { authenticateSupabase } = require('../middleware/authSupabase');
 
 // Safe Increment Endpoint
-router.post('/progress/increment', authenticate, async (req, res) => {
+router.post('/progress/increment', authenticateSupabase, async (req, res) => {
     try {
         const { type } = req.body; // 'chat' or 'roleplay'
         const userId = req.user.id;
@@ -60,7 +48,7 @@ router.post('/progress/increment', authenticate, async (req, res) => {
 });
 
 // Update Progress (Keep for manual sync if needed, but risky)
-router.post('/progress', authenticate, async (req, res) => {
+router.post('/progress', authenticateSupabase, async (req, res) => {
     try {
         const { chatSessions, roleplayCompleted, streak, badges } = req.body;
         const userId = req.user.id;
@@ -89,7 +77,7 @@ router.post('/progress', authenticate, async (req, res) => {
 });
 
 // Get Progress (redundant if /auth/me returns it, but good for standalone fetch)
-router.get('/progress', authenticate, async (req, res) => {
+router.get('/progress', authenticateSupabase, async (req, res) => {
     try {
         const progress = await UserProgress.findOne({ where: { user_id: req.user.id } });
         res.json(progress || {});
