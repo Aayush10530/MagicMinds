@@ -32,28 +32,34 @@ const allowedOrigins = [
   process.env.CORS_ORIGIN          // Allow env variable
 ].filter(Boolean);                 // Remove null/undefined
 
-// 1. Global CORS Middleware - MUST be first
-app.use(cors({
-  origin: true, // Reflects the request origin
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-}));
-
-// 2. Explicit OPTIONS Handler (Preflight Fix for Express 5)
-// Using middleware to check method avoids 'path-to-regexp' errors with '*'
+// 1. GLOBAL MANUAL CORS MIDDLEWARE (Guaranteed Fix)
+// Must be the very first middleware to handle preflights before anything else.
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  // Allow all origins (reflection)
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
+  // Allow all standard headers + Auth + Custom
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  // Intercept OPTIONS method (Preflight)
   if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
     return res.sendStatus(200);
   }
+
   next();
 });
 
-// 3. Helmet Security (Relaxed for Internal API usage)
+// app.use(cors({...})); // REMOVED: Replaced by manual middleware above
+
+// 2. Helmet Security (Relaxed for Internal API usage)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Fixes "CORP" block
 }));
