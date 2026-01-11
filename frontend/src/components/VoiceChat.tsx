@@ -9,7 +9,8 @@ import { Mic, MicOff, Volume2, RotateCcw, Send, MessageSquare } from 'lucide-rea
 import { useToast } from '@/hooks/use-toast';
 import { createAudioRecorder, AudioRecorder } from '@/lib/audioUtils';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Default to relative path in prod (for Vercel proxy), fallback to localhost only if strictly needed
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 interface VoiceChatProps {
   language: string;

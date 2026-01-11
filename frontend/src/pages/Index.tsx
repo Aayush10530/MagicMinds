@@ -14,7 +14,7 @@ import { Mic, MessageCircle, Drama, X, ArrowLeft, Eye, EyeOff, Loader2 } from 'l
 import { User } from '@/components/User';
 import RotatingText from '@/components/RotatingText';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export type AppMode = 'welcome' | 'chat' | 'roleplay';
 export type Language = 'en' | 'hi' | 'mr' | 'gu' | 'ta';

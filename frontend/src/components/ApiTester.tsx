@@ -12,7 +12,7 @@ const ApiTester = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/health`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/health`);
       const data = await response.json();
       setTestResult(data);
     } catch (err: any) {
@@ -26,7 +26,7 @@ const ApiTester = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/test`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/test`);
       const data = await response.json();
       setTestResult(data);
     } catch (err: any) {

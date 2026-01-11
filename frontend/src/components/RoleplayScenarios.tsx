@@ -9,7 +9,7 @@ import { SmartTips } from './SmartTips';
 import { Mic, MicOff, Play, ArrowLeft, ArrowRight, Home, ShoppingCart, School } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 interface RoleplayScenario {
   id: string;
