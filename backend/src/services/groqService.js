@@ -22,8 +22,8 @@ const transcribeAudio = async (filePath, language = 'en') => {
 
         return transcription.text;
     } catch (error) {
-        console.error("Groq Transcription Error:", error);
-        throw error;
+        console.error("Groq Transcription Error:", error.message);
+        throw new Error("Groq Transcription Failed: " + error.message);
     }
 };
 
@@ -41,8 +41,8 @@ const generateResponse = async (messages) => {
 
         return chatCompletion.choices[0]?.message?.content || "";
     } catch (error) {
-        console.error("Groq Chat Completion Error:", error);
-        throw error;
+        console.error("Groq Chat Completion Error:", error.message);
+        throw new Error("Groq AI Service Failed: " + error.message);
     }
 };
 

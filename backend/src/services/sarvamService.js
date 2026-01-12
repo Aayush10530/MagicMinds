@@ -42,8 +42,8 @@ class SarvamService {
             }
 
         } catch (error) {
-            console.error('Sarvam AI TTS Error:', error.response?.data || error.message);
-            throw error;
+            console.warn('Sarvam AI TTS Failed (Graceful Fallback):', error.response?.data || error.message);
+            return null;
         }
     }
 }

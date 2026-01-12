@@ -207,7 +207,7 @@ router.post('/chat', authenticateSupabase, upload.single('audio'), async (req, r
     try {
 
       const audioBuffer = await textToSpeech.synthesize(replyText, session.language, session.voice_id);
-      if (audioBuffer && audioBuffer.length > 0) {
+      if (audioBuffer) {
         audioBase64 = audioBuffer.toString('base64');
       } else {
         ttsError = "TTS generation failed.";

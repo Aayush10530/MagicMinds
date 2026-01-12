@@ -24,13 +24,14 @@ class TextToSpeechService {
 
       // Call Sarvam Service
       const buffer = await sarvamService.synthesize(text, code, finalSpeaker);
+      if (!buffer) {
+        throw new Error("Sarvam Service returned no audio");
+      }
       return buffer;
 
     } catch (error) {
-      console.error('TTS execution error:', error.message);
-      // Return silent buffer or empty to prevent crash, but better to throw or handle upstream
-      // For now returning empty buffer as per previous contract
-      return Buffer.from('');
+      console.warn('TTS execution warning:', error.message);
+      return null; // Return null explicitly to signal failure
     }
   }
 
