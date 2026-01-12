@@ -6,6 +6,7 @@ const aiService = require('../services/aiService');
 const textToSpeech = require('../services/textToSpeech');
 const groqService = require('../services/groqService');
 const { authenticateSupabase } = require('../middleware/authSupabase');
+const { ensureUserExists } = require('../services/userService');
 const { ChatSession, ChatMessage } = require('../db');
 const { Op } = require('sequelize');
 const fs = require('fs');
@@ -96,6 +97,8 @@ router.post('/session/start', authenticateSupabase, async (req, res, next) => {
   try {
     const { type = 'chat', language = 'en', scenarioId, scenarioContext } = req.body;
     const userId = req.user.id;
+    // Safe Sync
+    await ensureUserExists(req.supabaseUser);
 
 
 
@@ -132,6 +135,8 @@ router.post('/chat', authenticateSupabase, upload.single('audio'), async (req, r
 
   try {
     const userId = req.user.id;
+    // Safe Sync
+    await ensureUserExists(req.supabaseUser);
     // We prioritize audio file, but accept text input (userMessage)
     const { userMessage } = req.body;
 
@@ -239,6 +244,8 @@ router.post('/roleplay', authenticateSupabase, upload.single('audio'), async (re
 
   try {
     const userId = req.user.id;
+    // Safe Sync
+    await ensureUserExists(req.supabaseUser);
     const { userMessage, scenarioId, currentPrompt } = req.body; // text input (fallback) or extra metadata
     // Note: frontend sends userMessage instead of audio sometimes for RoleplayScenarios.tsx text mode.
     // But for voice, it sends audio.

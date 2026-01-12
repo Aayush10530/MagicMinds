@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { User, UserProgress } = require('../db');
+const { ensureUserExists } = require('../services/userService');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'magic_secret_key_123';
@@ -12,6 +13,8 @@ router.post('/progress/increment', authenticateSupabase, async (req, res) => {
     try {
         const { type } = req.body; // 'chat' or 'roleplay'
         const userId = req.user.id;
+        // Safe Sync
+        await ensureUserExists(req.supabaseUser);
 
         let progress = await UserProgress.findOne({ where: { user_id: userId } });
         if (!progress) {
@@ -52,6 +55,8 @@ router.post('/progress', authenticateSupabase, async (req, res) => {
     try {
         const { chatSessions, roleplayCompleted, streak, badges } = req.body;
         const userId = req.user.id;
+        // Safe Sync
+        await ensureUserExists(req.supabaseUser);
 
         let progress = await UserProgress.findOne({ where: { user_id: userId } });
 
@@ -79,6 +84,11 @@ router.post('/progress', authenticateSupabase, async (req, res) => {
 // Get Progress (redundant if /auth/me returns it, but good for standalone fetch)
 router.get('/progress', authenticateSupabase, async (req, res) => {
     try {
+        // Safe Sync not strictly needed for READ if we just want to return empty, 
+        // but needed if we want to ensure 'req.user' is valid DB relation? 
+        // Actually, if we just query UserProgress by userId, and it doesn't exist, we return empty.
+        // But let's be consistent and specific.
+        await ensureUserExists(req.supabaseUser);
         const progress = await UserProgress.findOne({ where: { user_id: req.user.id } });
         res.json(progress || {});
     } catch (error) {

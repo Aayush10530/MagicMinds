@@ -13,48 +13,29 @@ const authenticateSupabase = async (req, res, next) => {
             return res.status(401).json({ error: 'Malformed token' });
         }
 
-        // Verify token with Supabase
+        // Verify token with Supabase (READ ONLY)
         const { data: { user }, error } = await supabase.auth.getUser(token);
 
         if (error || !user) {
-            console.error("Supabase Auth Error:", error?.message);
+            // console.error("Supabase Auth Error:", error?.message); // Optional logging
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
-        // Sync User to Local DB
-        // We try to find by ID (UUID match) or Email (fallback)
-        let localUser = await User.findByPk(user.id);
+        // Attach Supabase Identity ONLY (No DB calls)
+        // We map it to satisfy basic 'req.user.id' needs, but no DB instance yet.
+        req.user = {
+            id: user.id,
+            email: user.email,
+            app_metadata: user.app_metadata,
+            user_metadata: user.user_metadata
+        };
 
-        if (!localUser) {
-            // Create new user in local DB with same UUID
-            const metadata = user.user_metadata || {};
-            const name = metadata.full_name || metadata.name || user.email.split('@')[0];
-
-            try {
-                localUser = await User.create({
-                    id: user.id, // FORCE Same UUID
-                    email: user.email,
-                    name: name,
-                    country: metadata.country || 'US'
-                });
-            } catch (createError) {
-                // Handle race condition or email conflict (if email existed with different UUID ?)
-                console.error("User Sync Error:", createError);
-                // Fallback: Try finding by email
-                localUser = await User.findOne({ where: { email: user.email } });
-                if (!localUser) {
-                    return res.status(500).json({ error: 'Failed to synchronize user account.' });
-                }
-            }
-        }
-
-        // Attach to request
-        req.user = localUser; // Contains database record with 'id'
-        req.supabaseUser = user; // Contains auth record
+        req.supabaseUser = user; // Keep full object just in case
 
         next();
     } catch (err) {
-        console.error("Auth Middleware Error:", err);
+        console.error("Auth Middleware Unexpected Error:", err);
+        // CRITICAL: Always return 401/500, NEVER throw to avoid crash
         res.status(500).json({ error: 'Internal Server Error during Auth' });
     }
 };
