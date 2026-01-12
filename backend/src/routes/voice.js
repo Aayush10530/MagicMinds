@@ -350,7 +350,10 @@ router.post('/tts', async (req, res) => {
     const { text, language = 'en' } = req.body;
     // Force voice locking even here
     const buffer = await textToSpeech.synthesize(text, language, 'abhilash');
-    res.json({ success: true, audio: buffer.toString('base64') });
+    res.json({
+      success: true,
+      audio: buffer ? buffer.toString('base64') : null
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
