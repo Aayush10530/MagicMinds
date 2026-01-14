@@ -15,6 +15,10 @@ const startServer = async () => {
     try {
         console.log('🚀 Booting MagicMinds Backend...');
 
+        // 0. Initialize Database (Lazy Mode)
+        const { connectDB } = require('./db');
+        await connectDB();
+
         // 1. Initialize Express
         const app = express();
 
@@ -29,16 +33,21 @@ const startServer = async () => {
         // 3. Health Check (Independent of Database)
         app.get('/', (req, res) => res.send('Backend Running 🚀'));
         app.get('/api/health', (req, res) => {
-            // Phase 2 will add DB check here
-            res.json({
-                status: 'ok',
+            const { getDBStatus } = require('./db');
+            const isDBConnected = getDBStatus();
+
+            // Return 503 if DB is down, but keep app alive
+            res.status(isDBConnected ? 200 : 503).json({
+                status: isDBConnected ? 'ok' : 'degraded',
+                database: isDBConnected ? 'connected' : 'disconnected',
                 timestamp: new Date().toISOString(),
                 uptime: process.uptime()
             });
         });
 
-        // 4. API Routes (Plugged in later)
-        // app.use('/api/voice', voiceRoutes);
+        // 4. API Routes
+        app.use('/api/voice', require('./routes/voice'));
+        app.use('/api/user', require('./routes/user'));
 
         // 5. Global Error Handler (Must be last)
         app.use(globalErrorHandler);
