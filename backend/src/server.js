@@ -88,6 +88,17 @@ const startServer = async () => {
       res.json({ status: 'ok', message: 'Magic Minds backend is running!' });
     });
 
+    // Root Endpoint (For Default Health Checks)
+    app.get('/', (req, res) => {
+      res.send('Magic Minds Backend is Monitorable & Running 🚀');
+    });
+
+    // Heartbeat to prove process uptime
+    setInterval(() => {
+      const mem = process.memoryUsage();
+      console.log(`💓 [${new Date().toISOString()}] Server Heartbeat | RSS: ${(mem.rss / 1024 / 1024).toFixed(2)} MB`);
+    }, 10000);
+
     // Routes
     const uploadRouter = require('./routes/upload');
     const voiceRouter = require('./routes/voice');
