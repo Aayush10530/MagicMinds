@@ -44,6 +44,13 @@ const startServer = async () => {
     console.log('🔒 CORS_ORIGIN:', process.env.CORS_ORIGIN || '(Falling back to localhost:8080)');
     console.log('-----------------------------------');
 
+    // 1.5. Request Logger
+    app.use((req, res, next) => {
+      console.log(`📥 [${new Date().toISOString()}] ${req.method} ${req.url}`);
+      console.log('   Headers:', JSON.stringify(req.headers['user-agent']));
+      next();
+    });
+
     // 2. GLOBAL MANUAL CORS MIDDLEWARE
     app.use((req, res, next) => {
       const origin = req.headers.origin;

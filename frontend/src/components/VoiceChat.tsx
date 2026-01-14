@@ -125,9 +125,14 @@ export const VoiceChat = ({ language, userName, onSessionComplete, scenarioConte
         })
       });
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to start session:", e);
-      toast({ title: "Connection Error", description: "Could not start voice session.", variant: "destructive" });
+      // Show actual error in toast
+      toast({
+        title: "Connection Error",
+        description: `Could not start voice session: ${e.message}`,
+        variant: "destructive"
+      });
     }
   };
 
