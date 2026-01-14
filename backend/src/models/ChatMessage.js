@@ -21,7 +21,7 @@ const ChatMessage = sequelize.define('ChatMessage', {
     },
     // Vector embedding for the message content (for AI Memory)
     embedding: {
-        type: DataTypes.VECTOR(384), // Dimension for sentence-transformers/all-MiniLM-L6-v2
+        type: DataTypes.ARRAY(DataTypes.FLOAT), // Fallback for vector storage
         allowNull: true
     },
     timestamp: {
