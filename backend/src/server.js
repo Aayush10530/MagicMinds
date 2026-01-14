@@ -129,11 +129,14 @@ const startServer = async () => {
       console.log('A client connected:', socket.id);
     });
 
-    server.listen(PORT, () => {
-      const address = server.address();
-      console.log(`Magic Minds backend listening on port ${PORT}`);
-      console.log('   Address:', address);
+    const serverInstance = server.listen(PORT, '0.0.0.0', () => {
+      console.log(`Magic Minds backend listening on port ${PORT} at 0.0.0.0`);
     });
+
+    // KEEP-ALIVE SETTINGS (Critical for Load Balancers to prevent 502s)
+    // Ensure Node's timeout is longer than the Load Balancer's (usually 60s)
+    serverInstance.keepAliveTimeout = 120000; // 120 seconds
+    serverInstance.headersTimeout = 120000;   // 120 seconds
 
   } catch (criticalError) {
     console.error("❌ CRITICAL SERVER FAILURE:", criticalError);
