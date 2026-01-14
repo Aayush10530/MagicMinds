@@ -129,8 +129,10 @@ const startServer = async () => {
       console.log('A client connected:', socket.id);
     });
 
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Magic Minds backend listening on port ${PORT} at 0.0.0.0`);
+    server.listen(PORT, () => {
+      const address = server.address();
+      console.log(`Magic Minds backend listening on port ${PORT}`);
+      console.log('   Address:', address);
     });
 
   } catch (criticalError) {
