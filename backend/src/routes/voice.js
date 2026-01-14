@@ -73,15 +73,44 @@ router.post('/chat', authenticateSupabase, upload.single('audio'), asyncWrapper(
 
         if (!userText) throw { statusCode: 400, message: "Could not interpret input" };
 
-        // 3. Save User Message
+        // 3. Save User Message (Store first so it's part of history logic if we wanted, but typically we add it to context manually)
         await ChatMessage.create({
             session_id: sessionId,
             sender: 'user',
             content: userText
         });
 
+        // 3.5 Fetch Context (The "Brain" Upgrade)
+        // Get Session Info (System Prompt) and recent messages (History)
+        const session = await ChatSession.findByPk(sessionId);
+        const history = await ChatMessage.findAll({
+            where: { session_id: sessionId },
+            order: [['timestamp', 'DESC']],
+            limit: 10 // Remember last 10 exchanges
+        });
+
+        // Construct Message Chain: [System, ...History, User]
+        const messages = [];
+
+        // A. System Prompt
+        const systemPrompt = session?.system_prompt || 'You are David, an intelligent and friendly AI assistant. Always stay on topic, maintain context from previous messages, and answer the user\'s specific questions accurately.';
+        messages.push({ role: 'system', content: systemPrompt });
+
+        // B. History (Reverse chronological to chronological)
+        history.reverse().forEach(msg => {
+            // Don't include the current user message again if we just saved it? 
+            // We just saved it, so it IS in history. 
+            // But we need to map 'sender' enum to 'role'
+            messages.push({
+                role: msg.sender === 'ai' ? 'assistant' : 'user',
+                content: msg.content
+            });
+        });
+
+        // (Note: The user message we just saved IS in 'history' because we created it before querying)
+
         // 4. Generate AI Response
-        const aiText = await generateResponse(userText);
+        const aiText = await generateResponse(messages);
 
         // 5. Synthesize Speech (TTS)
         // We get a Buffer back
