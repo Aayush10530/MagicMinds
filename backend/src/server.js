@@ -13,14 +13,15 @@ const startServer = async () => {
     // This fixes the persistent ENETUNREACH (IPv6) errors on Railway
     if (process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
       try {
-        const addresses = await dns.promises.resolve4(process.env.DB_HOST);
-        if (addresses && addresses.length > 0) {
-          console.log(`🔍 DNS: Resolved ${process.env.DB_HOST} to IPv4: ${addresses[0]}`);
-          process.env.DB_HOST = addresses[0];
+        // Use dns.lookup (OS resolver) + family: 4
+        // This is robust for containers/CNAMEs where resolve4 (network query) fails
+        const { address } = await dns.promises.lookup(process.env.DB_HOST, { family: 4 });
+        if (address) {
+          console.log(`🔍 DNS: Resolved ${process.env.DB_HOST} to IPv4: ${address}`);
+          process.env.DB_HOST = address;
         }
       } catch (dnsErr) {
         console.warn('⚠️ DNS Resolution Warning:', dnsErr.message);
-        // Fallback to original host if resolution fails (e.g. it was already an IP)
       }
     }
 
@@ -84,9 +85,13 @@ const startServer = async () => {
     const uploadRouter = require('./routes/upload');
     const voiceRouter = require('./routes/voice');
 
+    console.log('✅ Mounted Upload Routes');
     app.use('/api/upload', uploadRouter);
+    console.log('✅ Mounted Voice Routes');
     app.use('/api/voice', voiceRouter);
+    console.log('✅ Mounted User Routes');
     app.use('/api/user', require('./routes/user'));
+    console.log('✅ All Routes Mounted Successfully');
 
     // Error Handling
     app.use((err, req, res, next) => {
