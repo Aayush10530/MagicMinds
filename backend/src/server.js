@@ -8,7 +8,7 @@ require('dotenv').config();
 const globalErrorHandler = require('./utils/globalErrorHandler');
 
 // Configuration
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000; // Default to 3000 for Railway
 const HOST = process.env.HOST || '0.0.0.0'; // Force IPv4 for Railway Compatibility
 
 const startServer = async () => {
