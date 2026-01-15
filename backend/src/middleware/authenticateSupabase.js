@@ -26,27 +26,31 @@ const authenticateSupabase = async (req, res, next) => {
         // 4. Attach User to Request
         req.user = user;
 
-        // 5. (Optional) Sync/Fetch Local User from DB
-        // This effectively "logs them in" to our PostgreSQL
-        // We wrap this in a non-blocking try/catch so auth succeeds even if DB is flaky
-        try {
-            if (User) {
-                // Check if user exists, if not create (Sync)
-                // This ensures our 'users' table matches Supabase Auth
+        // 5. Strict User Sync (Critical)
+        // We MUST ensure the user exists in our local PostgreSQL 'users' table.
+        // If this fails, Foreign Key constraints will break in 'ChatSession' later.
+        if (User) {
+            try {
                 const [localUser] = await User.findOrCreate({
                     where: { email: user.email },
                     defaults: {
-                        id: user.id, // Sync UUID
+                        id: user.id, // Supabase UUID -> Local UUID
                         email: user.email,
                         name: user.user_metadata?.full_name || user.user_metadata?.name || 'User',
-                        googleId: user.app_metadata?.provider === 'google' ? user.id : null
+                        googleId: user.app_metadata?.provider === 'google' ? user.id : null,
+                        country: 'Unknown',
+                        role: 'user'
                     }
                 });
                 req.localUser = localUser;
+            } catch (dbSyncErr) {
+                console.error('❌ Critical: Failed to sync Supabase User to Local DB:', dbSyncErr);
+                const syncError = new Error('User Synchronization Failed');
+                syncError.statusCode = 500;
+                throw syncError; // Fail the request. better than 502 later.
             }
-        } catch (dbErr) {
-            console.warn('⚠️ Auth Succeeded but Local DB Sync failed:', dbErr.message);
-            // We continue! Auth is valid, just DB record missing/unreachable.
+        } else {
+            console.warn('⚠️ User Model not loaded yet. Skipping sync (Degraded).');
         }
 
         next();

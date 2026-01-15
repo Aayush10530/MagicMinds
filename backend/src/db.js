@@ -32,25 +32,26 @@ const connectDB = async () => {
         console.log('✅ Database Connected (Supabase)');
         isConnected = true;
 
-        // 2. Initialize & Sync Models
+        // 2. Initialize Models (Always needed for queries)
         initModels();
 
-        try {
-            await sequelize.sync({ alter: true }); // Safe schema updates
-            console.log('✅ Database Synced');
-        } catch (syncError) {
-            // FIX for "column embedding cannot be cast automatically"
-            if (syncError.message && syncError.message.includes('cannot be cast automatically')) {
-                console.warn('⚠️ Schema Type Mismatch detected (Vector vs Array). Self-Repairing...');
-                // Force recreate just the ChatMessage table to fix the column type
-                // We ignore errors here (e.g. if table doesn't exist) to keep booting
-                await ChatMessage.sync({ force: true }).catch(e => console.error('Repair failed:', e.message));
-                console.log('✅ ChatMessage Table Recreated. Retrying Sync...');
+        // 3. Sync Schema (DEVELOPMENT ONLY)
+        // DANGER: Never run 'alter: true' in production while handling traffic.
+        // It causes race conditions, locks, and 502s.
+        if (process.env.NODE_ENV !== 'production') {
+            try {
                 await sequelize.sync({ alter: true });
-                console.log('✅ Database Synced (After Repair)');
-            } else {
-                throw syncError; // Rethrow other errors
+                console.log('✅ Database Synced (Dev Mode)');
+            } catch (syncError) {
+                // Keep Self-Repair logic ONLY for Dev
+                if (syncError.message && syncError.message.includes('cannot be cast automatically')) {
+                    console.warn('⚠️ Schema Type Mismatch (Dev). Repairing...');
+                    await ChatMessage.sync({ force: true }).catch(e => console.error(e));
+                    await sequelize.sync({ alter: true });
+                }
             }
+        } else {
+            console.log('✅ Production Mode: Skipping Auto-Sync (Schema must be stable)');
         }
 
     } catch (error) {
