@@ -9,7 +9,7 @@ const globalErrorHandler = require('./utils/globalErrorHandler');
 
 // Configuration
 const PORT = process.env.PORT || 8080;
-const HOST = process.env.HOST || '::'; // Dual Stack Listener
+const HOST = process.env.HOST || '0.0.0.0'; // Force IPv4 for Railway Compatibility
 
 const startServer = async () => {
     try {
