@@ -31,7 +31,13 @@ const startServer = async () => {
         app.use(express.json());
 
         // 3. Health Check (Independent of Database)
-        app.get('/', (req, res) => res.send('Backend Running 🚀'));
+        app.get('/', (req, res) => {
+            res.status(200).json({
+                status: "ok",
+                service: "MagicMinds Backend",
+                uptime: process.uptime()
+            });
+        });
         app.get('/api/health', (req, res) => {
             const { getDBStatus } = require('./db');
             const isDBConnected = getDBStatus();
