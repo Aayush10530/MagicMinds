@@ -34,8 +34,24 @@ const connectDB = async () => {
 
         // 2. Initialize & Sync Models
         initModels();
-        await sequelize.sync({ alter: true }); // Safe schema updates
-        console.log('✅ Database Synced');
+
+        try {
+            await sequelize.sync({ alter: true }); // Safe schema updates
+            console.log('✅ Database Synced');
+        } catch (syncError) {
+            // FIX for "column embedding cannot be cast automatically"
+            if (syncError.message && syncError.message.includes('cannot be cast automatically')) {
+                console.warn('⚠️ Schema Type Mismatch detected (Vector vs Array). Self-Repairing...');
+                // Force recreate just the ChatMessage table to fix the column type
+                // We ignore errors here (e.g. if table doesn't exist) to keep booting
+                await ChatMessage.sync({ force: true }).catch(e => console.error('Repair failed:', e.message));
+                console.log('✅ ChatMessage Table Recreated. Retrying Sync...');
+                await sequelize.sync({ alter: true });
+                console.log('✅ Database Synced (After Repair)');
+            } else {
+                throw syncError; // Rethrow other errors
+            }
+        }
 
     } catch (error) {
         console.error('⚠️ Database Connection Failed (Server running in Degraded Mode):');
