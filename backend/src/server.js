@@ -15,9 +15,9 @@ const startServer = async () => {
     try {
         console.log('🚀 Booting MagicMinds Backend...');
 
-        // 0. Initialize Database (Lazy Mode)
+        // 0. Initialize Database (Background Mode)
         const { connectDB } = require('./db');
-        await connectDB();
+        // connectDB(); // Moved to after listener to guarantee instant boot
 
         // 1. Initialize Express
         const app = express();
@@ -59,6 +59,10 @@ const startServer = async () => {
         const serverInstance = server.listen(PORT, HOST, () => {
             const addr = server.address();
             console.log(`✅ Server listening on [${typeof addr === 'string' ? addr : addr.address}]:${PORT}`);
+
+            // Trigger DB Connection AFTER server is up (Zero-Downtime Boot)
+            const { connectDB } = require('./db');
+            connectDB();
         });
 
         // Critical: Prevent Load Balancer 502s
