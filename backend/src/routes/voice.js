@@ -52,7 +52,7 @@ router.post('/session/start', authenticateSupabase, asyncWrapper(async (req, res
  * The Core Loop: Audio -> Text -> AI -> Text -> Audio
  */
 router.post('/chat', authenticateSupabase, upload.single('audio'), asyncWrapper(async (req, res) => {
-    const { sessionId, textInput } = req.body; // Can accept text OR audio
+    const { sessionId, textInput } = req.body;
     const audioFile = req.file;
 
     // 1. Validation
@@ -65,7 +65,12 @@ router.post('/chat', authenticateSupabase, upload.single('audio'), asyncWrapper(
         // 2. Transcribe (if Audio)
         if (audioFile) {
             console.log(`🎤 Processing Audio: ${audioFile.path}`);
-            userText = await voiceService.transcribe(audioFile.path);
+            try {
+                userText = await voiceService.transcribe(audioFile.path);
+            } catch (sttErr) {
+                console.error('❌ STT Service Failed:', sttErr);
+                throw { statusCode: 502, message: "Speech-to-Text Service Failed", cause: sttErr.message };
+            }
 
             // Cleanup temp file immediately
             try { fs.unlinkSync(audioFile.path); } catch (e) { }
@@ -73,67 +78,86 @@ router.post('/chat', authenticateSupabase, upload.single('audio'), asyncWrapper(
 
         if (!userText) throw { statusCode: 400, message: "Could not interpret input" };
 
-        // 3. Save User Message (Store first so it's part of history logic if we wanted, but typically we add it to context manually)
-        await ChatMessage.create({
-            session_id: sessionId,
-            sender: 'user',
-            content: userText
-        });
-
-        // 3.5 Fetch Context (The "Brain" Upgrade)
-        // Get Session Info (System Prompt) and recent messages (History)
-        const session = await ChatSession.findByPk(sessionId);
-        const history = await ChatMessage.findAll({
-            where: { session_id: sessionId },
-            order: [['timestamp', 'DESC']],
-            limit: 10 // Remember last 10 exchanges
-        });
-
-        // Construct Message Chain: [System, ...History, User]
-        const messages = [];
-
-        // A. System Prompt
-        const systemPrompt = session?.system_prompt || 'You are David, an intelligent and friendly AI assistant. Always stay on topic, maintain context from previous messages, and answer the user\'s specific questions accurately.';
-        messages.push({ role: 'system', content: systemPrompt });
-
-        // B. History (Reverse chronological to chronological)
-        history.reverse().forEach(msg => {
-            // Don't include the current user message again if we just saved it? 
-            // We just saved it, so it IS in history. 
-            // But we need to map 'sender' enum to 'role'
-            messages.push({
-                role: msg.sender === 'ai' ? 'assistant' : 'user',
-                content: msg.content
+        // 3. Save User Message
+        try {
+            await ChatMessage.create({
+                session_id: sessionId,
+                sender: 'user',
+                content: userText
             });
-        });
+        } catch (dbErr) {
+            console.error('❌ Database Write Failed (User Msg):', dbErr);
+            throw { statusCode: 503, message: "Database Save Failed", cause: dbErr.message };
+        }
 
-        // (Note: The user message we just saved IS in 'history' because we created it before querying)
+        // 3.5 Fetch Context
+        let messages = [];
+        try {
+            const session = await ChatSession.findByPk(sessionId);
+            const history = await ChatMessage.findAll({
+                where: { session_id: sessionId },
+                order: [['timestamp', 'DESC']],
+                limit: 10
+            });
+
+            const systemPrompt = session?.system_prompt || 'You are David, an intelligent and friendly AI assistant. Always stay on topic, maintain context from previous messages, and answer the user\'s specific questions accurately.';
+            messages.push({ role: 'system', content: systemPrompt });
+
+            history.reverse().forEach(msg => {
+                messages.push({
+                    role: msg.sender === 'ai' ? 'assistant' : 'user',
+                    content: msg.content
+                });
+            });
+        } catch (ctxErr) {
+            console.error('❌ Context Fetch Failed:', ctxErr);
+            // Non-fatal? No, we need context.
+            // Fallback to simple prompt if DB read fails but write worked?
+            // Let's degrade gracefully:
+            messages = [{ role: 'user', content: userText }];
+        }
 
         // 4. Generate AI Response
-        const aiText = await generateResponse(messages);
+        let aiText;
+        try {
+            aiText = await generateResponse(messages);
+        } catch (aiErr) {
+            console.error('❌ AI Service Failed:', aiErr);
+            throw { statusCode: 502, message: "AI Generation Failed", cause: aiErr.message };
+        }
 
         // 5. Synthesize Speech (TTS)
-        // We get a Buffer back
-        const audioBuffer = await voiceService.synthesize(aiText);
+        let audioBuffer = null;
+        try {
+            audioBuffer = await voiceService.synthesize(aiText);
+        } catch (ttsErr) {
+            console.error('❌ TTS Service Failed:', ttsErr);
+            // TTS failure is non-fatal, we can still return text.
+            audioBuffer = null;
+        }
 
         // 6. Save AI Message
-        await ChatMessage.create({
-            session_id: sessionId,
-            sender: 'ai',
-            content: aiText
-        });
+        try {
+            await ChatMessage.create({
+                session_id: sessionId,
+                sender: 'ai',
+                content: aiText
+            });
+        } catch (dbErr) {
+            console.error('❌ Database Write Failed (AI Msg):', dbErr);
+            // Non-fatal, response is ready
+        }
 
         // 7. Update User Progress (Async/Fire-and-forget)
-        // We don't await this to keep response fast
         if (req.user) {
-            UserProgress.increment('chat_sessions_count', { where: { user_id: req.user.id } }).catch(console.error);
+            UserProgress.increment('chat_sessions_count', { where: { user_id: req.user.id } }).catch(e => console.error('Progress Update Failed:', e.message));
         }
 
         // 8. Respond
         res.json({
             text: aiText,
             userTranscript: userText,
-            audio: audioBuffer ? audioBuffer.toString('base64') : null, // Send Base64 to frontend
+            audio: audioBuffer ? audioBuffer.toString('base64') : null,
             audioFormat: 'wav'
         });
 
@@ -142,7 +166,7 @@ router.post('/chat', authenticateSupabase, upload.single('audio'), asyncWrapper(
         if (audioFile && fs.existsSync(audioFile.path)) {
             try { fs.unlinkSync(audioFile.path); } catch (e) { }
         }
-        throw err;
+        throw err; // Global handler will catch this and log strict stack
     }
 }));
 
